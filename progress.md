@@ -17,18 +17,34 @@ Current claim shape:
   - require the path to satisfy BIP-86
 
 Current known-good built-in vector:
-- image ID:
-  - `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
 - final Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
+- observed image IDs for that same public output:
+  - sibling-layout build:
+    - `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
+  - fresh-clone build:
+    - `61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de`
+- current artifact caveat:
+  - the guest ELF embeds absolute source paths from the linked
+    `zkvm-platform` archive, so image IDs are currently build-path-sensitive
+    even when the public Taproot output key is identical
 
 Current measured local prove+verify result on this Mac:
-- command:
-  - `cargo run --release -- ../../bip32-pq-zkp/bip32-platform-latest.bin --raw-journal --use-test-vector --require-bip86`
-- wall-clock:
-  - `65.24s`
+- sibling-layout run:
+  - command:
+    - `cargo run --release -- ../../bip32-pq-zkp/bip32-platform-latest.bin --raw-journal --use-test-vector --require-bip86`
+  - wall-clock:
+    - `65.24s`
+- clean-room fresh-clone run:
+  - command:
+    - `/usr/bin/time -lp make prove GO_GOROOT=/Users/roasbeef/sdk/go1.24.4`
+  - wall-clock:
+    - `85.65s`
 - peak resident set size:
   - about `11.9 GB`
+- operator-side GPU confirmation:
+  - `asitop` showed about `40%` GPU usage at roughly `338 MHz` during the
+    fresh-clone proof
 
 Current repo-split direction:
 - `roasbeef/risc0`
@@ -40,6 +56,18 @@ Later remote-proving note:
 - Boundless repo:
   - `https://github.com/boundless-xyz/boundless`
 - kept for later investigation only; the current validated path is local proving
+
+Latest publication-quality verification:
+- cloned the private repos fresh under:
+  - `/tmp/roasbeef-publish-check.xtVcmy`
+- verified from those fresh clones:
+  - `tinygo-zkvm` required `make llvm-source` before the documented external
+    LLVM build command
+  - `risc0/examples/c-guest` rebuilt `libzkvm_platform.a`
+  - `go-zkvm` rebuilt `simple.bin` and executed it successfully
+  - `bip32-pq-zkp` host reference tests passed
+  - `bip32-pq-zkp` proved and verified successfully, producing the same public
+    Taproot output key as the sibling-layout build
 
 ## Goal
 

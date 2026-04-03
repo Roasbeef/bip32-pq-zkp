@@ -28,12 +28,19 @@ The current local lane works end-to-end on the updated stack:
 
 Current known-good vector result:
 
-- image ID:
-  - `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
 - Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
-- most recent split-layout release prove+verify time on this Mac:
-  - `65.24s`
+- observed image IDs for that same public output:
+  - sibling-layout build: `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
+  - fresh-clone build: `61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de`
+- observed release prove+verify times on this Mac:
+  - sibling-layout run: `65.24s`
+  - fresh-clone run: `85.65s`
+
+The output key is stable across both builds. The image ID is currently tied to
+the exact built artifact: the guest ELF still embeds absolute build paths from
+the linked `zkvm-platform` archive, so rebuilding the same source tree in a
+different directory changes the image ID.
 
 Strict BIP-86 path-shape checking is implemented as optional policy, not a hard
 requirement for every proof.

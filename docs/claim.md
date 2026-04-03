@@ -57,8 +57,19 @@ For the built-in test vector, the current public output key is:
 00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6
 ```
 
-and the current split-layout image ID is:
+The image ID should be treated as part of the exact built guest artifact, not
+as a universal constant across all build directories.
+
+Current observed image IDs for that same public output are:
 
 ```text
+sibling-layout build:
 62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082
+
+fresh-clone build:
+61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de
 ```
+
+The output key stayed identical across those runs. The image ID changed because
+the guest ELF currently embeds absolute source paths from the linked
+`zkvm-platform` archive, making the artifact build-path-sensitive.
