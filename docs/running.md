@@ -19,6 +19,11 @@ github.com/roasbeef/
 - `roasbeef/tinygo-zkvm`
 - `roasbeef/go-zkvm`
 
+Fresh-clone setup notes:
+
+- in `../tinygo-zkvm`, run `git submodule update --init --recursive`
+- in `../risc0`, run `git lfs pull` before building the Rust host/prover path
+
 If your default `go` is newer than the TinyGo lane supports, export:
 
 ```bash
@@ -85,6 +90,7 @@ Current built-in vector result:
   - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
 - measured release prove+verify times on this Mac:
   - deterministic standalone-archive run: `51.51s`
+  - clean-room deterministic rerun: `58.93s`
   - earlier sibling-layout rerun: `54.88s`
   - earlier fresh-clone run: `85.65s`
 

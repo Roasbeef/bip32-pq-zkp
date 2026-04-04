@@ -31,6 +31,18 @@ Current known-good built-in vector:
     checkout paths
 
 Current measured local prove+verify result on this Mac:
+- clean-room deterministic rerun:
+  - path:
+    - `/tmp/roasbeef-deterministic-repro.AUHw8G`
+  - image ID:
+    - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
+  - proof seal size:
+    - `1797880` bytes
+  - wall-clock:
+    - `58.93s`
+  - fresh-clone prerequisites discovered during that rerun:
+    - `tinygo-zkvm`: `git submodule update --init --recursive`
+    - `risc0`: `git lfs pull`
 - deterministic standalone-archive run:
   - command:
     - `/usr/bin/time -lp cargo run --release -- /tmp/bip32-standalone-local.bin --raw-journal --use-test-vector --require-bip86`

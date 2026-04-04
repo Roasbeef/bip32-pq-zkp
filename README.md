@@ -36,6 +36,7 @@ Current known-good vector result:
   - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
 - observed release prove+verify times on this Mac:
   - deterministic standalone-archive run: `51.51s`
+  - clean-room deterministic rerun: `58.93s`
   - earlier sibling-layout rerun: `54.88s`
   - earlier fresh-clone run: `85.65s`
 
@@ -65,6 +66,11 @@ This repo is the concrete demo layer:
 - the running project log in `progress.md`
 
 The reusable guest/host plumbing lives in the sibling `go-zkvm` repo.
+
+Fresh-clone setup notes:
+
+- in sibling `tinygo-zkvm`, run `git submodule update --init --recursive`
+- in sibling `risc0`, run `git lfs pull` before the Rust host/prover build
 
 ## Layout
 
