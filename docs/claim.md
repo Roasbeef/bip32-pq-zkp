@@ -57,6 +57,12 @@ For the built-in test vector, the current public output key is:
 00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6
 ```
 
+Latest measured local proof size for that vector on this Mac:
+
+```text
+1797880 bytes
+```
+
 The image ID should be treated as part of the exact built guest artifact, not
 as a universal constant across all build directories.
 

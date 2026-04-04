@@ -30,6 +30,15 @@ Current known-good built-in vector:
     even when the public Taproot output key is identical
 
 Current measured local prove+verify result on this Mac:
+- latest sibling-layout rerun:
+  - command:
+    - `/usr/bin/time -lp make prove GO_GOROOT=/Users/roasbeef/sdk/go1.24.4`
+  - image ID:
+    - `e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb`
+  - proof seal size:
+    - `1797880` bytes
+  - wall-clock:
+    - `54.88s`
 - sibling-layout run:
   - command:
     - `cargo run --release -- ../../bip32-pq-zkp/bip32-platform-latest.bin --raw-journal --use-test-vector --require-bip86`

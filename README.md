@@ -30,10 +30,13 @@ Current known-good vector result:
 
 - Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
+- latest measured proof seal size on this Mac:
+  - `1797880` bytes
 - observed image IDs for that same public output:
   - sibling-layout build: `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
   - fresh-clone build: `61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de`
 - observed release prove+verify times on this Mac:
+  - latest sibling-layout rerun: `54.88s`
   - sibling-layout run: `65.24s`
   - fresh-clone run: `85.65s`
 
