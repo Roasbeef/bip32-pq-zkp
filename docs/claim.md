@@ -64,18 +64,20 @@ Latest measured local proof size for that vector on this Mac:
 ```
 
 The image ID should be treated as part of the exact built guest artifact, not
-as a universal constant across all build directories.
+as a universal constant across all build environments.
 
-Current observed image IDs for that same public output are:
+Current sibling-layout image ID:
 
 ```text
-sibling-layout build:
-62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082
-
-fresh-clone build:
-61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de
+e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb
 ```
 
-The output key stayed identical across those runs. The image ID changed because
-the guest ELF currently embeds absolute source paths from the linked
-`zkvm-platform` archive, making the artifact build-path-sensitive.
+Current caveat:
+
+- moving only the `bip32-pq-zkp` checkout path while keeping the same sibling
+  toolchain trees did not change this image ID
+- rebuilding the linked `libzkvm_platform.a` from a different `risc0` checkout
+  path did change the image ID while preserving the same public output key
+
+So the remaining checkout-path sensitivity is currently in the linked
+platform-archive build.

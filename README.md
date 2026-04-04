@@ -32,18 +32,23 @@ Current known-good vector result:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
 - latest measured proof seal size on this Mac:
   - `1797880` bytes
-- observed image IDs for that same public output:
-  - sibling-layout build: `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
-  - fresh-clone build: `61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de`
+- current sibling-layout image ID:
+  - `e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb`
 - observed release prove+verify times on this Mac:
   - latest sibling-layout rerun: `54.88s`
   - sibling-layout run: `65.24s`
   - fresh-clone run: `85.65s`
 
-The output key is stable across both builds. The image ID is currently tied to
-the exact built artifact: the guest ELF still embeds absolute build paths from
-the linked `zkvm-platform` archive, so rebuilding the same source tree in a
-different directory changes the image ID.
+Current reproducibility caveat:
+
+- moving only the `bip32-pq-zkp` checkout to a different directory while
+  reusing the same sibling `risc0`, `tinygo-zkvm`, and `go-zkvm` trees kept the
+  image ID stable
+- rebuilding the linked `libzkvm_platform.a` from a different `risc0` checkout
+  path changed the image ID while keeping the public Taproot output key the same
+
+So the current instability is specifically tied to the linked platform-archive
+build, not just the demo repo checkout path.
 
 Strict BIP-86 path-shape checking is implemented as optional policy, not a hard
 requirement for every proof.

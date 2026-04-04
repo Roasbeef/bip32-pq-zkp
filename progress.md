@@ -19,15 +19,16 @@ Current claim shape:
 Current known-good built-in vector:
 - final Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
-- observed image IDs for that same public output:
-  - sibling-layout build:
-    - `62b563ecceda688696ca9f9e2bb24c4b7e8987647a2d27a960e4d3376bd18082`
-  - fresh-clone build:
-    - `61a39aca30f96db015a56ea08b6fba8f0cfd43eca4d148c50afa1de60ecb26de`
+- current sibling-layout image ID:
+  - `e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb`
 - current artifact caveat:
-  - the guest ELF embeds absolute source paths from the linked
-    `zkvm-platform` archive, so image IDs are currently build-path-sensitive
-    even when the public Taproot output key is identical
+  - moving only the `bip32-pq-zkp` checkout path while reusing the same sibling
+    `risc0`, `tinygo-zkvm`, and `go-zkvm` trees kept the image ID stable
+  - rebuilding the linked `libzkvm_platform.a` from a different `risc0`
+    checkout path changed the image ID while keeping the same public output key
+  - explicit source-path remapping in the `examples/c-guest` platform build
+    helps sanitize embedded paths, but it does not yet fully eliminate the
+    platform-archive path sensitivity
 
 Current measured local prove+verify result on this Mac:
 - latest sibling-layout rerun:
@@ -54,6 +55,20 @@ Current measured local prove+verify result on this Mac:
 - operator-side GPU confirmation:
   - `asitop` showed about `40%` GPU usage at roughly `338 MHz` during the
     fresh-clone proof
+
+Targeted reproducibility experiments after the repo split:
+- changing only the `bip32-pq-zkp` checkout path:
+  - changed the raw ELF and packed `.bin` hashes
+  - did not change the computed image ID
+- rebuilding only `risc0/examples/c-guest` from a different checkout path:
+  - changed the `libzkvm_platform.a` hash
+  - changed the final guest image ID to:
+    - `99c5fd320c1427e704eea22c84e9bd6ae2d0f6aa27ffb2a19b379189a4fba249`
+  - kept the public Taproot output key identical
+- adding explicit path remaps to the platform build:
+  - normalized visible `/risc0-src/...` and `/cargo/registry/src/...` strings
+  - but did not yet make cross-checkout platform archives produce the same
+    guest image ID
 
 Current repo-split direction:
 - `roasbeef/risc0`
