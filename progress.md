@@ -19,18 +19,27 @@ Current claim shape:
 Current known-good built-in vector:
 - final Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
-- current sibling-layout image ID:
-  - `e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb`
+- current deterministic image ID:
+  - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
 - current artifact caveat:
   - moving only the `bip32-pq-zkp` checkout path while reusing the same sibling
     `risc0`, `tinygo-zkvm`, and `go-zkvm` trees kept the image ID stable
-  - rebuilding the linked `libzkvm_platform.a` from a different `risc0`
-    checkout path changed the image ID while keeping the same public output key
-  - explicit source-path remapping in the `examples/c-guest` platform build
-    helps sanitize embedded paths, but it does not yet fully eliminate the
-    platform-archive path sensitivity
+  - the older workspace-local `make platform` flow in `risc0/examples/c-guest`
+    changed the image ID when the `risc0` checkout path changed
+  - the published `make platform-standalone` flow now produces a matching
+    platform archive and matching final guest artifact across different `risc0`
+    checkout paths
 
 Current measured local prove+verify result on this Mac:
+- deterministic standalone-archive run:
+  - command:
+    - `/usr/bin/time -lp cargo run --release -- /tmp/bip32-standalone-local.bin --raw-journal --use-test-vector --require-bip86`
+  - image ID:
+    - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
+  - proof seal size:
+    - `1797880` bytes
+  - wall-clock:
+    - `51.51s`
 - latest sibling-layout rerun:
   - command:
     - `/usr/bin/time -lp make prove GO_GOROOT=/Users/roasbeef/sdk/go1.24.4`
@@ -69,6 +78,17 @@ Targeted reproducibility experiments after the repo split:
   - normalized visible `/risc0-src/...` and `/cargo/registry/src/...` strings
   - but did not yet make cross-checkout platform archives produce the same
     guest image ID
+- standalone archive builder milestone:
+  - `roasbeef/risc0` now publishes `examples/c-guest make platform-standalone`
+  - that target pins the platform crate dependencies to the published git
+    commit instead of local workspace path dependencies
+  - across two different `risc0` checkout paths it produced the same platform
+    archive hash:
+    - `925833d290f462302d9fd72e9cd37569c52f49a91a46ff4cc18e1405468aab08`
+  - rebuilding the real `bip32` guest against those two standalone archives
+    produced matching guest artifact hashes:
+    - ELF: `42c672f595643cea00573de14614df7b7e78122bdca8702bae790f1b89baefee`
+    - BIN: `4d8a41a78a726941e469bfad5ad77524a20f39b5c02313fa80351205857ded9c`
 
 Current repo-split direction:
 - `roasbeef/risc0`

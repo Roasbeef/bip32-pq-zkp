@@ -22,7 +22,7 @@ The current local lane works end-to-end on the updated stack:
 
 - latest-upstream risc0 lane
 - TinyGo `v0.40.1` fork with zkVM support
-- upstream `libzkvm_platform.a`
+- deterministic `libzkvm_platform.a` from `risc0/examples/c-guest make platform-standalone`
 - private witness input from the Rust host
 - guest commits only the final Taproot output key
 
@@ -32,23 +32,23 @@ Current known-good vector result:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
 - latest measured proof seal size on this Mac:
   - `1797880` bytes
-- current sibling-layout image ID:
-  - `e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb`
+- current deterministic image ID:
+  - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
 - observed release prove+verify times on this Mac:
-  - latest sibling-layout rerun: `54.88s`
-  - sibling-layout run: `65.24s`
-  - fresh-clone run: `85.65s`
+  - deterministic standalone-archive run: `51.51s`
+  - earlier sibling-layout rerun: `54.88s`
+  - earlier fresh-clone run: `85.65s`
 
-Current reproducibility caveat:
+Current reproducibility status:
 
 - moving only the `bip32-pq-zkp` checkout to a different directory while
   reusing the same sibling `risc0`, `tinygo-zkvm`, and `go-zkvm` trees kept the
   image ID stable
-- rebuilding the linked `libzkvm_platform.a` from a different `risc0` checkout
-  path changed the image ID while keeping the public Taproot output key the same
-
-So the current instability is specifically tied to the linked platform-archive
-build, not just the demo repo checkout path.
+- the older workspace-local `make platform` flow in `risc0/examples/c-guest`
+  was the remaining source of checkout-path image-ID drift
+- the published `make platform-standalone` path now removes that instability:
+  the standalone-built archive, guest ELF, and packed guest `.bin` were all
+  reproduced byte-for-byte across different `risc0` checkout directories
 
 Strict BIP-86 path-shape checking is implemented as optional policy, not a hard
 requirement for every proof.

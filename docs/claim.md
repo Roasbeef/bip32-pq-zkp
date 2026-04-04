@@ -63,21 +63,22 @@ Latest measured local proof size for that vector on this Mac:
 1797880 bytes
 ```
 
-The image ID should be treated as part of the exact built guest artifact, not
-as a universal constant across all build environments.
+The image ID is still part of the exact built guest artifact, but the
+recommended standalone-archive flow now reproduces that artifact across
+different `risc0` checkout paths.
 
-Current sibling-layout image ID:
+Current deterministic image ID:
 
 ```text
-e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb
+b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79
 ```
 
-Current caveat:
+Current reproducibility status:
 
 - moving only the `bip32-pq-zkp` checkout path while keeping the same sibling
   toolchain trees did not change this image ID
-- rebuilding the linked `libzkvm_platform.a` from a different `risc0` checkout
-  path did change the image ID while preserving the same public output key
-
-So the remaining checkout-path sensitivity is currently in the linked
-platform-archive build.
+- the older workspace-local `make platform` flow in `risc0/examples/c-guest`
+  was the remaining source of checkout-path drift
+- the recommended `make platform-standalone` flow now produces a matching
+  platform archive and matching final guest artifact across different `risc0`
+  checkout paths

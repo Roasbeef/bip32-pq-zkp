@@ -28,11 +28,17 @@ export GO_GOROOT=/path/to/go1.24.4
 ## Current Flow
 
 1. build the TinyGo fork
-2. build the risc0 platform archive
+2. build the risc0 platform archive with `make platform-standalone`
 3. build the `bip32` guest with TinyGo target `zkvm-platform`
 4. package it with `v1compat.elf`
 5. run host-side reference tests
 6. execute or prove it with the Rust host harness from `go-zkvm`
+
+From this repo root, the archive step can be proxied with:
+
+```bash
+make platform-standalone
+```
 
 ## Reference Check
 
@@ -75,24 +81,25 @@ Current built-in vector result:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
 - latest measured proof seal size:
   - `1797880` bytes
-- current sibling-layout image ID:
-  - `e9177de911f48092749d50e17368e83a26207b016c3fe95a2efc49135e45c4eb`
+- current deterministic image ID:
+  - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
 - measured release prove+verify times on this Mac:
-  - latest sibling-layout rerun: `54.88s`
-  - sibling-layout run: `65.24s`
-  - fresh-clone run: `85.65s`
+  - deterministic standalone-archive run: `51.51s`
+  - earlier sibling-layout rerun: `54.88s`
+  - earlier fresh-clone run: `85.65s`
 
 The output key is stable across all of the checked runs.
 
-Current image-ID caveat:
+Current image-ID status:
 
 - changing only the `bip32-pq-zkp` checkout path while keeping the same sibling
   `risc0`, `tinygo-zkvm`, and `go-zkvm` trees did not change the image ID
-- rebuilding the linked `libzkvm_platform.a` from a different `risc0` checkout
-  path did change the image ID while preserving the same public output
+- the older workspace-local `make platform` flow in `risc0/examples/c-guest`
+  did change the image ID when the `risc0` checkout path changed
+- the new `make platform-standalone` flow produced a matching platform archive,
+  guest ELF, and packed guest `.bin` across different `risc0` checkout paths
 
-So the remaining instability is specifically in the linked platform-archive
-build, not just the demo checkout path.
+The deterministic image ID above comes from that standalone-archive flow.
 
 ## Remote Proving Note
 

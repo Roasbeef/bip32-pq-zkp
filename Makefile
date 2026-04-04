@@ -9,9 +9,12 @@ PLATFORM_LIB ?= $(RISC0_DIR)/examples/c-guest/guest/out/platform/riscv32im-risc0
 KERNEL ?= $(RISC0_DIR)/risc0/zkos/v1compat/elfs/v1compat.elf
 CONVERT := $(GO) run $(GO_ZKVM_DIR)/convert_to_r0bf.go
 
-.PHONY: all check-tools hostcheck bip32-platform-latest execute prove clean
+.PHONY: all check-tools hostcheck platform-standalone bip32-platform-latest execute prove clean
 
 all: bip32-platform-latest
+
+platform-standalone:
+	$(MAKE) -C $(RISC0_DIR)/examples/c-guest platform-standalone
 
 check-tools:
 	@test -x "$(TINYGO_BIN)" || (echo "missing TinyGo binary: $(TINYGO_BIN)" && exit 1)
