@@ -9,18 +9,39 @@ now also tracking the extracted `bip32-pq-zkp` demo state.
 
 Current claim shape:
 - public material:
-  - final Taproot output key only
+  - claim version
+  - claim flags
+  - final Taproot output key
+  - path commitment
 - private witness:
   - seed
   - derivation path
 - optional policy:
-  - require the path to satisfy BIP-86
+  - require the path to satisfy BIP-86, exposed as a public claim flag
+
+Current prover / verifier flow:
+- `make execute`
+  - runs the guest with private witness input and prints the public claim
+- `make prove`
+  - builds the guest, proves it locally, and writes:
+    - `artifacts/bip32-test-vector.receipt`
+    - `artifacts/bip32-test-vector.claim.json`
+- `make verify`
+  - verifies the receipt against the guest image ID
+  - and then verifies either:
+    - the emitted claim JSON
+    - or direct public expectations such as `PUBKEY`, `BIP32_PATH`, and
+      `REQUIRE_BIP86`
 
 Current known-good built-in vector:
 - final Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
+- path commitment:
+  - `4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b`
+- current journal size:
+  - `72` bytes
 - current deterministic image ID:
-  - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
+  - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
 - current artifact caveat:
   - moving only the `bip32-pq-zkp` checkout path while reusing the same sibling
     `risc0`, `tinygo-zkvm`, and `go-zkvm` trees kept the image ID stable
@@ -31,6 +52,26 @@ Current known-good built-in vector:
     checkout paths
 
 Current measured local prove+verify result on this Mac:
+- split claim-artifact `make prove` run with explicit witness:
+  - command:
+    - `/usr/bin/time -lp make prove GO_GOROOT=/Users/roasbeef/sdk/go1.24.4 PRIV_SEED_HEX=000102030405060708090a0b0c0d0e0f BIP32_PATH="86',0',0',0,0"`
+  - image ID:
+    - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
+  - proof seal size:
+    - `1797880` bytes
+  - wall-clock:
+    - `54.38s`
+  - peak resident set size:
+    - about `11.9 GB`
+- split `make verify` run with explicit public expectations:
+  - command:
+    - `make verify GO_GOROOT=/Users/roasbeef/sdk/go1.24.4 CLAIM= PUBKEY=00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6 BIP32_PATH="86',0',0',0,0"`
+  - result:
+    - verified the receipt directly against:
+      - guest image ID
+      - expected Taproot output key
+      - expected path commitment recomputed from the supplied path
+      - expected `require_bip86=true` policy bit
 - clean-room deterministic rerun:
   - path:
     - `/tmp/roasbeef-deterministic-repro.AUHw8G`
@@ -76,6 +117,13 @@ Current measured local prove+verify result on this Mac:
 - operator-side GPU confirmation:
   - `asitop` showed about `40%` GPU usage at roughly `338 MHz` during the
     fresh-clone proof
+- current host build confirmation:
+  - `cargo tree` for `host/` includes the `metal` crate via `risc0-zkp`
+  - `otool -L host/target/release/bip32-pq-zkp-host` shows
+    `Metal.framework`
+  - important nuance:
+    - Metal is for local proving
+    - TinyGo guest compilation itself remains CPU work
 
 Targeted reproducibility experiments after the repo split:
 - changing only the `bip32-pq-zkp` checkout path:

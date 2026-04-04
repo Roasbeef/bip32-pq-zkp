@@ -69,3 +69,41 @@ func TestDeriveTaprootOutputKeyMatchesTxscriptReference(t *testing.T) {
 			gotHex, wantHex)
 	}
 }
+
+func TestDeriveTaprootClaimMatchesExpectedPublicMaterial(t *testing.T) {
+	seed, path := testVector()
+
+	claim, err := bip32.DeriveTaprootClaim(seed, path, bip32.WithBIP86PathVerification())
+	if err != nil {
+		t.Fatalf("DeriveTaprootClaim failed: %v", err)
+	}
+
+	if claim.Version != bip32.ClaimVersion {
+		t.Fatalf("unexpected claim version: got %d want %d", claim.Version, bip32.ClaimVersion)
+	}
+	if claim.Flags != bip32.ClaimFlagRequireBIP86 {
+		t.Fatalf("unexpected claim flags: got %d want %d", claim.Flags, bip32.ClaimFlagRequireBIP86)
+	}
+
+	const wantTaprootKey = "00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6"
+	if got := hex.EncodeToString(claim.TaprootOutputKey[:]); got != wantTaprootKey {
+		t.Fatalf("unexpected taproot output key in claim: got %s want %s", got, wantTaprootKey)
+	}
+
+	expectedCommitment := bip32.CommitPath(path)
+	if claim.PathCommitment != expectedCommitment {
+		t.Fatalf("unexpected path commitment: got %s want %s",
+			hex.EncodeToString(claim.PathCommitment[:]),
+			hex.EncodeToString(expectedCommitment[:]),
+		)
+	}
+
+	encoded := claim.Encode()
+	decoded, err := bip32.DecodePublicClaim(encoded)
+	if err != nil {
+		t.Fatalf("DecodePublicClaim failed: %v", err)
+	}
+	if decoded != claim {
+		t.Fatalf("claim round-trip mismatch: got %+v want %+v", decoded, claim)
+	}
+}

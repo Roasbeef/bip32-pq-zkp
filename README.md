@@ -8,13 +8,15 @@ The witness is:
 - the seed
 - the derivation path
 
-The public output is:
+The verifier-facing public claim is:
 
-- the final 32-byte Taproot output key only
+- the final 32-byte Taproot output key
+- a 32-byte commitment to the private derivation path
+- claim version and policy flags
 
-This keeps the proof aligned with the actual claim we care about: knowledge of
-private seed/path material that derives to a specific Taproot key, without
-revealing that witness.
+The core public target is still the Taproot output key. The extra public fields
+let the verifier bind the proof to a path commitment and an optional BIP-86
+policy flag without revealing the private witness itself.
 
 ## Current Status
 
@@ -24,17 +26,25 @@ The current local lane works end-to-end on the updated stack:
 - TinyGo `v0.40.1` fork with zkVM support
 - deterministic `libzkvm_platform.a` from `risc0/examples/c-guest make platform-standalone`
 - private witness input from the Rust host
-- guest commits only the final Taproot output key
+- guest commits a structured 72-byte public claim
+- local proving on Apple Silicon uses the Metal-enabled risc0 prover build by
+  default unless `RISC0_FORCE_CPU_PROVER=1` is set
 
 Current known-good vector result:
 
 - Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
+- Path commitment:
+  - `4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b`
+- Claim journal size:
+  - `72` bytes
 - latest measured proof seal size on this Mac:
   - `1797880` bytes
 - current deterministic image ID:
-  - `b154913927df91257436ddb91567d46a28018c03bfb3848c3d7d7a774e840a79`
+  - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
 - observed release prove+verify times on this Mac:
+  - split `make prove` run with explicit `PRIV_SEED_HEX` / `BIP32_PATH`:
+    `54.38s`
   - deterministic standalone-archive run: `51.51s`
   - clean-room deterministic rerun: `58.93s`
   - earlier sibling-layout rerun: `54.88s`
@@ -78,6 +88,8 @@ Fresh-clone setup notes:
   - minimal derivation helpers used by the guest and host-side tests
 - `guest/`
   - TinyGo guest for the end-to-end proof
+- `host/`
+  - local Rust prover / verifier CLI for `execute`, `prove`, and `verify`
 - `hostcheck/`
   - host-side correctness tests against btcd/txscript
 - `docs/`

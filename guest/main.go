@@ -46,14 +46,14 @@ func main() {
 		opts = append(opts, bip32.WithBIP86PathVerification())
 	}
 
-	outputKey, err := bip32.DeriveTaprootOutputKey(seed[:int(seedLen)], pathSlice, opts...)
+	claim, err := bip32.DeriveTaprootClaim(seed[:int(seedLen)], pathSlice, opts...)
 	if err != nil {
-		zkvm.Debug("DeriveTaprootOutputKey failed\n")
+		zkvm.Debug("DeriveTaprootClaim failed\n")
 		zkvm.Halt(1)
 	}
 
 	zkvm.Debug("bip32: derived\n")
-	zkvm.Commit(outputKey)
+	zkvm.Commit(claim.Encode())
 	zkvm.Debug("bip32: committed\n")
 	zkvm.Halt(0)
 }

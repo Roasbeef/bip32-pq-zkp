@@ -13,7 +13,11 @@
 
 ## Core Claim
 
-The public output is only the final Taproot output key.
+The verifier-facing public claim is:
+
+- final Taproot output key
+- path commitment
+- policy/version flags
 
 The private witness is:
 

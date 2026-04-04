@@ -23,6 +23,22 @@ type taprootDeriveOptions struct {
 	requireBIP86Path bool
 }
 
+func parseTaprootDeriveOptions(opts ...TaprootDeriveOption) taprootDeriveOptions {
+	var options taprootDeriveOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	return options
+}
+
+func (options taprootDeriveOptions) claimFlags() uint32 {
+	var flags uint32
+	if options.requireBIP86Path {
+		flags |= ClaimFlagRequireBIP86
+	}
+	return flags
+}
+
 // TaprootDeriveOption configures optional Taproot derivation policy checks.
 type TaprootDeriveOption func(*taprootDeriveOptions)
 
@@ -38,10 +54,7 @@ func WithBIP86PathVerification() TaprootDeriveOption {
 // path, converts it to the BIP-340 even-Y internal key, then computes the
 // key-spend-only Taproot output key tweak.
 func DeriveTaprootOutputKey(seed []byte, path []uint32, opts ...TaprootDeriveOption) ([]byte, error) {
-	var options taprootDeriveOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := parseTaprootDeriveOptions(opts...)
 	if options.requireBIP86Path && !IsBIP86Path(path) {
 		return nil, ErrInvalidBIP86Path
 	}
