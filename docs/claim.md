@@ -199,6 +199,66 @@ Current demo policy:
 - the BIP-86 requirement is carried as a verifier-visible public claim flag,
   not as a separate image identity
 
+## Future Claim v2 Sketch
+
+The current `claim_version = 1` proves key derivation only. It does not yet
+bind that derived Taproot key to an actual spend authorization.
+
+If the next step is a spend-authorizing proof, then the important public binding
+target is the BIP-341 sighash digest, not just a `txid` or `wtxid`.
+
+Why:
+
+- `txid` does not include witness data and is not itself the Taproot
+  authorization message
+- `wtxid` includes witness data, which makes it awkward as the primary thing to
+  sign or prove over
+- Taproot key-path authorization is over the BIP-341 sighash message, which
+  also depends on prevout amounts, scriptPubKeys, input index, and sighash type
+
+So the natural `claim v2` direction is:
+
+- keep:
+  - `taproot_output_key`
+  - `path_commitment`
+- add:
+  - `sighash_digest`
+  - `sighash_type`
+  - `input_index`
+- optionally add:
+  - the actual BIP-340 Schnorr signature
+  - `txid`
+  - `wtxid`
+
+In that model, the proof statement becomes:
+
+```text
+∃ seed, path :
+  TaprootKey(BIP32(seed, path)) = taproot_output_key
+  CommitPath(path) = path_commitment
+  SignTaproot(sighash_digest) = signature
+```
+
+where `sighash_digest` is the exact BIP-341 authorization digest for the spend
+being proven.
+
+There are three natural implementation levels:
+
+- minimal:
+  - the host computes the BIP-341 sighash externally
+  - the guest proves derivation, tweak, and signature over that digest
+- better:
+  - same as above, but the public claim also carries the actual Schnorr
+    signature
+- strongest:
+  - the guest computes the BIP-341 sighash internally from the transaction
+    template, prevouts, amounts, scriptPubKeys, input index, and sighash flag
+  - then proves derivation, tweak, sighash construction, and signature together
+
+In that future design, `txid` and `wtxid` are still useful verifier-facing
+metadata in `claim.json`, but they are not sufficient by themselves as the core
+authorization binding.
+
 ## Current Known-Good Vector
 
 For the built-in test vector, the current public claim material is:
