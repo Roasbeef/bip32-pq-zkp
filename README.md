@@ -3,6 +3,15 @@
 `bip32-pq-zkp` is the concrete demo repo for proving, inside `risc0`, that a
 public Taproot output key was derived from private BIP-32 witness material.
 
+## Background
+
+This demo is a concrete realization of the seed-lifting idea from the
+"Protecting Quantum Procrastinators with Signature Lifting" paper. That paper
+identifies an open problem: how to prove ownership of BIP-32-derived coins
+without exposing the master secret. This repo solves that problem with a STARK
+proof (via risc0 zkVM) that runs the full BIP-32 derivation inside a
+zero-knowledge virtual machine, so the seed and path never leave the prover.
+
 The private witness is:
 
 - the seed
@@ -31,6 +40,43 @@ Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are still
 supported, but they are the advanced/manual path rather than the default
 verifier UX.
 
+## How It Works
+
+1. The host builds a private witness containing the BIP-32 seed and derivation
+   path.
+2. The host passes the witness to the guest program via stdin.
+3. The guest runs the full BIP-32 key derivation and BIP-86 Taproot output-key
+   computation inside the risc0 zkVM.
+4. The guest commits a 72-byte public claim (version, flags, output key, path
+   commitment) to the proof journal.
+5. The host generates a STARK proof and writes the receipt and claim artifacts.
+
+```mermaid
+flowchart TD
+    subgraph "Private Witness (never revealed)"
+        Seed[BIP-32 Seed]
+        Path["Derivation Path<br/>m/86'/0'/0'/0/0"]
+    end
+
+    subgraph "Guest (inside risc0 zkVM)"
+        Seed & Path -->|stdin| Read[Read witness]
+        Read --> Derive["BIP-32 CKDpriv<br/>(HMAC-SHA512 chain)"]
+        Derive --> Taproot["BIP-86 Taproot<br/>output key tweak"]
+        Taproot --> Commit["Commit 72-byte<br/>public claim"]
+    end
+
+    subgraph "Public Output"
+        Commit --> Journal["Journal:<br/>version | flags |<br/>output key | path commitment"]
+        Journal --> Receipt[STARK Receipt]
+        Receipt --> Verify{Verify}
+        Verify -->|"image ID match<br/>+ claim check"| OK["Ownership proved<br/>without revealing seed"]
+    end
+
+    style Seed fill:#fff3e0,stroke:#e65100
+    style Path fill:#fff3e0,stroke:#e65100
+    style OK fill:#e8f5e9,stroke:#2e7d32
+```
+
 ## What This Repo Contains
 
 This repo is the demo layer on top of the reusable sibling `go-zkvm` host and
@@ -44,6 +90,8 @@ It contains:
 - the demo-specific Go host command for `execute`, `prove`, and `verify`
 - host-side reference tests against `btcd/txscript`
 - claim and runbook documentation
+- the root-level `bip32pqzkp` Go package providing `Runner`,
+  `BuildWitnessStdin`, `DecodePublicClaim`, and claim-file helpers
 
 The reusable guest packaging, proving, and verification boundary lives in the
 sibling `go-zkvm` repo.
@@ -174,5 +222,5 @@ Start with:
 - `docs/claim.md`
 - `docs/running.md`
 
-The top-level `progress.md` is now just a short current-state tracker rather
-than the full historical log.
+The top-level `progress.md` remains the repo-local working log for the demo and
+its major findings.
