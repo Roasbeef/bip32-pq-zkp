@@ -1,3 +1,7 @@
+// Package hostcheck validates the local bip32 derivation helpers against
+// btcd/txscript as the reference implementation. These tests ensure that the
+// minimal BIP-32 and Taproot helpers used by the guest produce identical
+// results to the full btcd implementation.
 package hostcheck
 
 import (
@@ -11,6 +15,8 @@ import (
 	"github.com/roasbeef/bip32-pq-zkp/bip32"
 )
 
+// testVector returns the built-in BIP-32 test vector 1 seed (16 bytes) and
+// the BIP-86 derivation path m/86'/0'/0'/0/0 used throughout the demo.
 func testVector() ([]byte, []uint32) {
 	seed := []byte{
 		0x00, 0x01, 0x02, 0x03,
