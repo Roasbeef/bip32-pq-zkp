@@ -105,6 +105,8 @@ func WriteClaimFile(path string, claim ClaimFile) error {
 	return nil
 }
 
+// writeReceipt writes the raw serialized receipt bytes to disk, creating
+// parent directories as needed.
 func writeReceipt(path string, receipt []byte) error {
 	if err := ensureParentDir(path); err != nil {
 		return err
@@ -113,6 +115,8 @@ func writeReceipt(path string, receipt []byte) error {
 	return os.WriteFile(path, receipt, 0o600)
 }
 
+// ensureParentDir creates the parent directory of the given path if it does
+// not already exist.
 func ensureParentDir(path string) error {
 	parent := filepath.Dir(path)
 	if parent == "." || parent == "" {
@@ -128,6 +132,13 @@ func ensureParentDir(path string) error {
 	return nil
 }
 
+// verifyClaimFileMatches checks that a stored claim.json artifact matches the
+// claim decoded from the verified receipt journal. The comparison is semantic:
+// it checks all public claim fields plus the journal and receipt encoding, but
+// intentionally excludes ProofSealBytes because the seal size may vary across
+// prover implementations for the same valid proof.
+//
+// NOTE: ProofSealBytes is intentionally excluded from the semantic comparison.
 func verifyClaimFileMatches(expected ClaimFile, verified ClaimFile) error {
 	if expected.ImageID != verified.ImageID {
 		return fmt.Errorf(
@@ -158,6 +169,8 @@ func verifyClaimFileMatches(expected ClaimFile, verified ClaimFile) error {
 	return nil
 }
 
+// verifyClaimExpectations checks the decoded public claim against explicit
+// per-field expectations provided by the caller via CLI flags.
 func verifyClaimExpectations(expectations VerifyExpectations,
 	claim PublicClaim) error {
 
