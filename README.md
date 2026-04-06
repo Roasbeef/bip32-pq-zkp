@@ -46,30 +46,17 @@ prover. The STARK proof system is itself post-quantum secure (transparent,
 no trusted setup), so the entire construction holds even in a world with
 large-scale quantum computers.
 
-## Verifier Artifacts
-
-A prove run emits two files: a binary receipt (the STARK proof) and a
-human-readable `claim.json` that names the public fields from the relation
-above. The intended verification flow is:
-
-1. Load the receipt and `claim.json`.
-2. Compute or pin the expected image ID for the guest binary.
-3. Verify the receipt against that image ID.
-4. Compare the verified journal output to the claim file.
-
-Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` flag checks are also
-supported for callers who want per-field verification without a claim file.
-
 ## How It Works
 
-1. The host builds a private witness containing the BIP-32 seed and derivation
-   path.
+1. The host builds a private witness containing the BIP-32 seed and
+   derivation path.
 2. The host passes the witness to the guest program via stdin.
-3. The guest runs the full BIP-32 key derivation and BIP-86 Taproot output-key
-   computation inside the risc0 zkVM.
-4. The guest commits a 72-byte public claim (version, flags, output key, path
-   commitment) to the proof journal.
-5. The host generates a STARK proof and writes the receipt and claim artifacts.
+3. The guest runs the full BIP-32 key derivation and BIP-86 Taproot
+   output-key computation inside the risc0 zkVM.
+4. The guest commits a 72-byte public claim (version, flags, output key,
+   path commitment) to the proof journal.
+5. The host generates a STARK proof and writes the receipt and claim
+   artifacts.
 
 ```mermaid
 flowchart TD
@@ -94,24 +81,37 @@ flowchart TD
     end
 ```
 
+## Verifier Artifacts
+
+A prove run emits two files: a binary receipt (the STARK proof) and a
+human-readable `claim.json` that names the public fields from the relation
+above. The intended verification flow is:
+
+1. Load the receipt and `claim.json`.
+2. Compute or pin the expected image ID for the guest binary.
+3. Verify the receipt against that image ID.
+4. Compare the verified journal output to the claim file.
+
+Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` flag checks are also
+supported for callers who want per-field verification without a claim file.
+
 ## What This Repo Contains
 
-This repo is the demo layer on top of the reusable sibling `go-zkvm` host and
-guest plumbing.
+This repo is the demo layer on top of the reusable sibling `go-zkvm` host
+and guest plumbing. It contains:
 
-It contains:
-
-- minimal BIP-32 derivation helpers
+- minimal BIP-32 derivation helpers (`bip32/`)
 - BIP-86 Taproot output-key derivation helpers
-- the TinyGo guest for the final proof claim
-- the demo-specific Go host command for `execute`, `prove`, and `verify`
-- host-side reference tests against `btcd/txscript`
-- claim and runbook documentation
+- the TinyGo guest that produces the proof claim (`guest/`)
+- a demo-specific Go host CLI for `execute`, `prove`, and `verify`
+  (`cmd/bip32-pq-zkp-host/`)
+- host-side reference tests against `btcd/txscript` (`hostcheck/`)
 - the root-level `bip32pqzkp` Go package providing `Runner`,
   `BuildWitnessStdin`, `DecodePublicClaim`, and claim-file helpers
+- claim specification and runbook documentation (`docs/`)
 
-The reusable guest packaging, proving, and verification boundary lives in the
-sibling `go-zkvm` repo.
+The reusable guest packaging, proving, and verification boundary lives in
+the sibling [`go-zkvm`](https://github.com/roasbeef/go-zkvm) repo.
 
 ## Expected Sibling Layout
 
@@ -123,7 +123,7 @@ github.com/roasbeef/
 └── bip32-pq-zkp
 ```
 
-Fresh-clone setup that still matters in practice:
+Fresh-clone setup:
 
 - in sibling `tinygo-zkvm`, run `git submodule update --init --recursive`
 - in sibling `risc0`, run `git lfs pull`
@@ -156,7 +156,7 @@ Generate the canonical verifier artifacts:
 make prove GO_GOROOT=/path/to/go1.24.4
 ```
 
-Verify the emitted `receipt + claim.json` pair:
+Verify the emitted receipt + claim pair:
 
 ```bash
 make verify GO_GOROOT=/path/to/go1.24.4
@@ -184,52 +184,31 @@ The default prove target writes:
 - `./artifacts/bip32-test-vector.receipt`
 - `./artifacts/bip32-test-vector.claim.json`
 
-The receipt is the actual proof artifact. `claim.json` is the stable,
+The receipt is the STARK proof artifact. `claim.json` is the stable,
 human-readable description of the public statement being proved.
 
 ## Current Verified Result
 
-Current built-in vector result:
+Built-in test vector result (BIP-32 test vector 1, path `m/86'/0'/0'/0/0`):
 
-- Taproot output key:
-  - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
-- path commitment:
-  - `4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b`
-- public claim journal size:
-  - `72` bytes
-- latest measured proof seal size on this Mac:
-  - `1797880` bytes
-- current deterministic image ID:
-  - `b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23`
-- latest clean-room prove time from published repos:
-  - `54.28s`
+| Field | Value |
+|-------|-------|
+| Taproot output key | `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6` |
+| Path commitment | `4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b` |
+| Journal size | 72 bytes |
+| Proof seal size | 1,797,880 bytes |
+| Image ID | `b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23` |
+| Prove time (clean-room) | 54.28s |
 
-On Apple Silicon, the local proving lane was validated with Metal enabled.
-Guest compilation is still normal CPU work; Metal applies to the local prover,
-not to TinyGo compilation.
+On Apple Silicon, the local proving lane uses Metal GPU acceleration.
+Guest compilation is normal CPU work; Metal applies to the prover only.
 
 ## Policy
 
-The documented demo lane defaults to BIP-86 enforcement, but callers can opt
-out explicitly for non-BIP-86 derivations.
-
-The current design intentionally keeps this as a single guest image:
-
-- the BIP-86 requirement is carried as a verifier-visible public claim flag
-- opting out changes the public policy bit, not the image model
-
-## Layout
-
-- `bip32/`
-  - minimal derivation helpers used by the guest and host-side tests
-- `guest/`
-  - TinyGo guest for the proof claim
-- `cmd/bip32-pq-zkp-host/`
-  - thin demo-specific Go CLI for `execute`, `prove`, and `verify`
-- `hostcheck/`
-  - host-side correctness tests against `btcd/txscript`
-- `docs/`
-  - claim statement, runbook, and code-format notes
+The demo lane defaults to BIP-86 path enforcement, but callers can opt out
+for non-BIP-86 derivations. The design keeps a single guest image: the
+BIP-86 requirement is a verifier-visible public claim flag, not a separate
+image identity.
 
 ## Future Work
 
@@ -242,11 +221,6 @@ natural next step toward a consensus-ready migration rule. See
 
 ## Documentation
 
-Start with:
-
-- `docs/README.md`
-- `docs/claim.md`
-- `docs/running.md`
-
-The top-level `progress.md` remains the repo-local working log for the demo and
-its major findings.
+- `docs/README.md`: reading order and topic map
+- `docs/claim.md`: claim specification and v2 sketch
+- `docs/running.md`: build, execute, prove, and verify commands
