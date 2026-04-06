@@ -1,6 +1,7 @@
 package bip32pqzkp
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -25,16 +26,38 @@ func BuildWitnessStdin(cfg WitnessConfig) ([]byte, bool, error) {
 		return nil, false, err
 	}
 
-	stdin := make([]byte, 0, 4+4+len(witness.seed)+4+len(witness.path)*4)
-	stdin = appendU32(stdin, witness.flags)
-	stdin = appendU32(stdin, uint32(len(witness.seed)))
-	stdin = append(stdin, witness.seed...)
-	stdin = appendU32(stdin, uint32(len(witness.path)))
-	for _, component := range witness.path {
-		stdin = appendU32(stdin, component)
+	var stdin bytes.Buffer
+	stdin.Grow(4 + 4 + len(witness.seed) + 4 + len(witness.path)*4)
+
+	if err := binary.Write(
+		&stdin, binary.LittleEndian, witness.flags,
+	); err != nil {
+		return nil, false, fmt.Errorf("write witness flags: %w", err)
+	}
+	if err := binary.Write(
+		&stdin, binary.LittleEndian, uint32(len(witness.seed)),
+	); err != nil {
+		return nil, false, fmt.Errorf(
+			"write witness seed length: %w", err,
+		)
+	}
+	if _, err := stdin.Write(witness.seed); err != nil {
+		return nil, false, fmt.Errorf("write witness seed: %w", err)
+	}
+	if err := binary.Write(
+		&stdin, binary.LittleEndian, uint32(len(witness.path)),
+	); err != nil {
+		return nil, false, fmt.Errorf(
+			"write witness path length: %w", err,
+		)
+	}
+	if err := binary.Write(
+		&stdin, binary.LittleEndian, witness.path,
+	); err != nil {
+		return nil, false, fmt.Errorf("write witness path: %w", err)
 	}
 
-	return stdin, witness.usingTestVector, nil
+	return stdin.Bytes(), witness.usingTestVector, nil
 }
 
 func resolveWitness(cfg WitnessConfig) (resolvedWitness, error) {
@@ -228,11 +251,4 @@ func decodeHexArray32(label, value string) ([32]byte, error) {
 	copy(out[:], bytes)
 
 	return out, nil
-}
-
-func appendU32(dst []byte, value uint32) []byte {
-	var buf [4]byte
-	binary.LittleEndian.PutUint32(buf[:], value)
-
-	return append(dst, buf[:]...)
 }

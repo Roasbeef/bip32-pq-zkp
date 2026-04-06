@@ -128,6 +128,7 @@ type PublicClaim struct {
 type ClaimFile struct {
 	// SchemaVersion identifies the JSON artifact schema.
 	SchemaVersion uint32 `json:"schema_version"`
+
 	// ImageID is the guest image ID used during prove and verify.
 	ImageID string `json:"image_id"`
 
@@ -165,6 +166,7 @@ type ClaimFile struct {
 type ExecuteReport struct {
 	// GuestPath is the guest artifact path used for the run.
 	GuestPath string
+
 	// GuestSize is the packaged guest size in bytes.
 	GuestSize int
 

@@ -10,17 +10,21 @@ import (
 var (
 	// ErrInvalidBIP86Path indicates the provided path is not BIP-86 shaped.
 	ErrInvalidBIP86Path = errors.New("invalid bip86 path")
+
 	// ErrInvalidTaprootTweak indicates the tweak scalar was out of range.
 	ErrInvalidTaprootTweak = errors.New("invalid taproot tweak")
+
 	// ErrInvalidTaprootKey indicates tweak addition produced an
 	// invalid key.
 	ErrInvalidTaprootKey = errors.New("invalid taproot key")
-	tagTapTweak          = []byte("TapTweak")
+
+	tagTapTweak = []byte("TapTweak")
 )
 
 const (
 	// BIP86Purpose is the hardened BIP-86 purpose component (`86'`).
 	BIP86Purpose = HardenedKeyStart + 86
+
 	// BIP86PathLen is the expected number of path elements for BIP-86.
 	BIP86PathLen = 5
 )

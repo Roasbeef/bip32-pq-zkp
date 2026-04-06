@@ -9,9 +9,11 @@ import (
 const (
 	// ClaimVersion is the current serialized public-claim schema version.
 	ClaimVersion = 1
+
 	// ClaimFlagRequireBIP86 marks claims that enforce the BIP-86
 	// path shape.
 	ClaimFlagRequireBIP86 = 1
+
 	// PublicClaimSize is the serialized journal size of a public claim.
 	PublicClaimSize = 72
 )
@@ -23,10 +25,13 @@ var ErrInvalidPublicClaimSize = errors.New("invalid public claim size")
 type PublicClaim struct {
 	// Version identifies the serialized claim format.
 	Version uint32
+
 	// Flags records verifier-visible policy bits.
 	Flags uint32
+
 	// TaprootOutputKey is the final x-only BIP-86 output key.
 	TaprootOutputKey [32]byte
+
 	// PathCommitment commits to the private derivation path.
 	PathCommitment [32]byte
 }

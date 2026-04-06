@@ -19,13 +19,16 @@ const (
 var (
 	// ErrInvalidSeedLength indicates the seed is outside the BIP-32 bounds.
 	ErrInvalidSeedLength = errors.New("invalid seed length")
+
 	// ErrInvalidMasterKey indicates the seed-derived master key was
 	// invalid.
 	ErrInvalidMasterKey = errors.New("invalid master key")
+
 	// ErrInvalidChildKey indicates a child derivation produced an
 	// invalid key.
 	ErrInvalidChildKey = errors.New("invalid child key")
-	masterKeySalt      = []byte("Bitcoin seed")
+
+	masterKeySalt = []byte("Bitcoin seed")
 )
 
 // DeriveXOnly derives the BIP-32 child private key at the given path and

@@ -1,14 +1,14 @@
 # bip32-pq-zkp
 
-`bip32-pq-zkp` is the end-to-end demo repo for proving, inside risc0, that a
+`bip32-pq-zkp` is the concrete demo repo for proving, inside `risc0`, that a
 public Taproot output key was derived from private BIP-32 witness material.
 
-The witness is:
+The private witness is:
 
 - the seed
 - the derivation path
 
-The verifier-facing public claim is:
+The public claim is:
 
 - the final 32-byte Taproot output key
 - a 32-byte commitment to the private derivation path
@@ -17,14 +17,9 @@ The verifier-facing public claim is:
 The canonical verifier artifact set is:
 
 - a binary receipt file
-- a human-readable `claim.json` file that names the public claim fields and the
-  image ID they were proven against
+- a human-readable `claim.json` file
 
-The core public target is still the Taproot output key. The extra public fields
-let the verifier bind the proof to a path commitment and an optional BIP-86
-policy flag without revealing the private witness itself.
-
-The intended default verifier flow is:
+The intended verifier flow is:
 
 1. load the receipt
 2. load `claim.json`
@@ -32,97 +27,144 @@ The intended default verifier flow is:
 4. verify the receipt against that image ID
 5. compare the verified public journal output to `claim.json`
 
-Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are still supported,
-but they are the advanced/manual path rather than the canonical one.
+Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are still
+supported, but they are the advanced/manual path rather than the default
+verifier UX.
 
-## Current Status
+## What This Repo Contains
 
-The current local lane works end-to-end on the updated stack:
+This repo is the demo layer on top of the reusable sibling `go-zkvm` host and
+guest plumbing.
 
-- latest-upstream risc0 lane
-- TinyGo `v0.40.1` fork with zkVM support
-- deterministic `libzkvm_platform.a` from `risc0/examples/c-guest make platform-standalone`
-- private witness input from the demo-specific Go host command backed by
-  `go-zkvm/host`
-- guest commits a structured 72-byte public claim
-- local proving on Apple Silicon uses the Metal-enabled risc0 prover build by
-  default unless `RISC0_FORCE_CPU_PROVER=1` is set
+It contains:
 
-Current known-good vector result:
+- minimal BIP-32 derivation helpers
+- BIP-86 Taproot output-key derivation helpers
+- the TinyGo guest for the final proof claim
+- the demo-specific Go host command for `execute`, `prove`, and `verify`
+- host-side reference tests against `btcd/txscript`
+- claim and runbook documentation
+
+The reusable guest packaging, proving, and verification boundary lives in the
+sibling `go-zkvm` repo.
+
+## Expected Sibling Layout
+
+```text
+github.com/roasbeef/
+├── risc0
+├── tinygo-zkvm
+├── go-zkvm
+└── bip32-pq-zkp
+```
+
+Fresh-clone setup that still matters in practice:
+
+- in sibling `tinygo-zkvm`, run `git submodule update --init --recursive`
+- in sibling `risc0`, run `git lfs pull`
+- `make execute`, `make prove`, and `make verify` will build the sibling
+  `go-zkvm` `host-ffi` shared library if it is missing or stale
+
+If your default `go` is newer than the TinyGo lane supports, export:
+
+```bash
+export GO_GOROOT=/path/to/go1.24.4
+```
+
+## Quick Start
+
+Build the deterministic platform archive from the sibling `risc0` repo:
+
+```bash
+make platform-standalone
+```
+
+Run the built-in test vector in execute-only mode:
+
+```bash
+make execute GO_GOROOT=/path/to/go1.24.4
+```
+
+Generate the canonical verifier artifacts:
+
+```bash
+make prove GO_GOROOT=/path/to/go1.24.4
+```
+
+Verify the emitted `receipt + claim.json` pair:
+
+```bash
+make verify GO_GOROOT=/path/to/go1.24.4
+```
+
+By default:
+
+- `make execute` and `make prove` use the built-in BIP-32 test vector
+- `make verify` uses the default artifacts from the prior `make prove`
+- the documented demo lane keeps `require_bip86=true`
+
+To use an explicit private witness instead of the built-in vector:
+
+```bash
+make prove GO_GOROOT=/path/to/go1.24.4 \
+  PRIV_SEED_HEX=000102030405060708090a0b0c0d0e0f \
+  BIP32_PATH="86',0',0',0,0" \
+  REQUIRE_BIP86=1
+```
+
+## Artifacts
+
+The default prove target writes:
+
+- `./artifacts/bip32-test-vector.receipt`
+- `./artifacts/bip32-test-vector.claim.json`
+
+The receipt is the actual proof artifact. `claim.json` is the stable,
+human-readable description of the public statement being proved.
+
+## Current Verified Result
+
+Current built-in vector result:
 
 - Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
-- Path commitment:
+- path commitment:
   - `4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b`
-- Claim journal size:
+- public claim journal size:
   - `72` bytes
 - latest measured proof seal size on this Mac:
   - `1797880` bytes
 - current deterministic image ID:
   - `b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23`
-- observed release prove+verify times on this Mac:
-  - clean-room published-repos prove run: `54.28s`
-  - split `make prove` run with explicit `PRIV_SEED_HEX` / `BIP32_PATH`:
-    `54.38s`
-  - deterministic standalone-archive run: `51.51s`
-  - clean-room deterministic rerun: `58.93s`
-  - earlier sibling-layout rerun: `54.88s`
-  - earlier fresh-clone run: `85.65s`
+- latest clean-room prove time from published repos:
+  - `54.28s`
 
-Current reproducibility status:
+On Apple Silicon, the local proving lane was validated with Metal enabled.
+Guest compilation is still normal CPU work; Metal applies to the local prover,
+not to TinyGo compilation.
 
-- moving only the `bip32-pq-zkp` checkout to a different directory while
-  reusing the same sibling `risc0`, `tinygo-zkvm`, and `go-zkvm` trees kept the
-  image ID stable
-- the older workspace-local `make platform` flow in `risc0/examples/c-guest`
-  was the remaining source of checkout-path image-ID drift
-- the published `make platform-standalone` path now removes that instability:
-  the standalone-built archive, guest ELF, and packed guest `.bin` were all
-  reproduced byte-for-byte across different `risc0` checkout directories
+## Policy
 
-Strict BIP-86 path-shape checking is implemented as optional policy, not a hard
-requirement for every proof. The documented demo lane now enables that policy
-by default, with an explicit opt-out path for non-BIP-86 derivations.
+The documented demo lane defaults to BIP-86 enforcement, but callers can opt
+out explicitly for non-BIP-86 derivations.
 
-The current design keeps this as a single guest image. BIP-86 remains a
-verifier-visible public policy flag inside the claim rather than requiring a
-separate image per policy mode.
+The current design intentionally keeps this as a single guest image:
 
-## Scope
-
-This repo is the concrete demo layer:
-
-- minimal BIP-32 derivation helpers
-- BIP-86 Taproot output-key derivation helpers
-- TinyGo guest logic for the final proof claim
-- host-side reference tests against btcd/txscript
-- docs for the claim, policy options, and runbook
-- the running project log in `progress.md`
-
-The reusable guest/host plumbing lives in the sibling `go-zkvm` repo.
-
-Fresh-clone setup notes:
-
-- in sibling `tinygo-zkvm`, run `git submodule update --init --recursive`
-- in sibling `risc0`, run `git lfs pull` before the local prover build
-- `make execute`, `make prove`, and `make verify` automatically build the
-  sibling `go-zkvm` `host-ffi` shared library if it is missing or stale
+- the BIP-86 requirement is carried as a verifier-visible public claim flag
+- opting out changes the public policy bit, not the image model
 
 ## Layout
 
 - `bip32/`
   - minimal derivation helpers used by the guest and host-side tests
 - `guest/`
-  - TinyGo guest for the end-to-end proof
+  - TinyGo guest for the proof claim
 - `cmd/bip32-pq-zkp-host/`
-  - demo-specific Go host command for `execute`, `prove`, and `verify`
-  - built on top of `github.com/roasbeef/go-zkvm/host`
+  - thin demo-specific Go CLI for `execute`, `prove`, and `verify`
 - `hostcheck/`
-  - host-side correctness tests against btcd/txscript
+  - host-side correctness tests against `btcd/txscript`
 - `docs/`
-  - claim statement and runbooks
-- `progress.md`
-  - prototype log and major findings
+  - claim statement, runbook, and code-format notes
 
 ## Documentation
 
@@ -131,4 +173,6 @@ Start with:
 - `docs/README.md`
 - `docs/claim.md`
 - `docs/running.md`
-- `progress.md`
+
+The top-level `progress.md` is now just a short current-state tracker rather
+than the full historical log.
