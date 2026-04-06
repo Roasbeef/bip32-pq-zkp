@@ -80,7 +80,12 @@ Current reproducibility status:
   reproduced byte-for-byte across different `risc0` checkout directories
 
 Strict BIP-86 path-shape checking is implemented as optional policy, not a hard
-requirement for every proof.
+requirement for every proof. The documented demo lane now enables that policy
+by default, with an explicit opt-out path for non-BIP-86 derivations.
+
+The current design keeps this as a single guest image. BIP-86 remains a
+verifier-visible public policy flag inside the claim rather than requiring a
+separate image per policy mode.
 
 ## Scope
 

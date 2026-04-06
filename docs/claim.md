@@ -179,6 +179,14 @@ Why:
 
 The current implementation supports both.
 
+Current demo policy:
+
+- the documented `bip32-pq-zkp` demo lane defaults to `require_bip86 = true`
+- callers can still opt out explicitly for non-BIP-86 derivations
+- this remains a single guest image
+- the BIP-86 requirement is carried as a verifier-visible public claim flag,
+  not as a separate image identity
+
 ## Current Known-Good Vector
 
 For the built-in test vector, the current public claim material is:

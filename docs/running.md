@@ -104,7 +104,8 @@ Default behavior:
 - bare `make execute` or `make prove` uses the built-in BIP-32 test vector
 - bare `make verify` expects the default receipt and claim artifacts from a
   prior `make prove`
-- bare `make verify` also checks the default `require_bip86=true` policy bit
+- bare `make execute`, `make prove`, and `make verify` all default to
+  `require_bip86=true`
 - if you set `PRIV_SEED_HEX`, you should also set `BIP32_PATH`
 
 Canonical verifier path:
@@ -113,6 +114,7 @@ Canonical verifier path:
   - a receipt
   - a canonical `claim.json`
 - `make verify` is intended to verify that pair by default
+- the documented demo lane assumes `REQUIRE_BIP86=1` unless you opt out
 - direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are optional
   tighter/manual checks, not the primary verifier UX
 
@@ -131,6 +133,15 @@ make execute GO_GOROOT=/path/to/go1.24.4 \
   PRIV_SEED_HEX=000102030405060708090a0b0c0d0e0f \
   BIP32_PATH="86',0',0',0,0" \
   REQUIRE_BIP86=1
+```
+
+Opt out of BIP-86 for a non-BIP-86 derivation:
+
+```bash
+make prove GO_GOROOT=/path/to/go1.24.4 \
+  PRIV_SEED_HEX=000102030405060708090a0b0c0d0e0f \
+  BIP32_PATH="44',0',0',0,0" \
+  REQUIRE_BIP86=0
 ```
 
 ## Prove
@@ -185,6 +196,12 @@ make verify GO_GOROOT=/path/to/go1.24.4 \
 
 If the verifier knows the path commitment directly instead of the path itself,
 replace `BIP32_PATH=...` with `PATH_COMMITMENT=<hex>`.
+
+Policy note:
+
+- the demo keeps a single guest image for both modes
+- `require_bip86` is carried as a verifier-visible public claim flag
+- opting out changes the public claim policy bit, not the host/image model
 
 Compatibility notes for verifiers:
 

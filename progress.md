@@ -97,6 +97,13 @@ Verifier-artifact policy update:
   - with `proof_seal_bytes` explicitly treated as informative metadata rather
     than a stability guarantee
 
+BIP-86 policy decision:
+- the documented demo lane now defaults to `require_bip86=true`
+- callers can still opt out explicitly for non-BIP-86 derivations
+- this remains a single guest image
+- the BIP-86 choice stays as a verifier-visible public claim flag rather than
+  splitting into separate guest images
+
 Current known-good built-in vector:
 - final Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
