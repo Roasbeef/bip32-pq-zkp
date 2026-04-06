@@ -7,8 +7,12 @@
 2. `claim.md`
    - exact public claim, private witness, and optional policy knobs
 3. `running.md`
-   - build, execute, prove, and verify the current demo
-4. `../progress.md`
+   - build, execute, prove, and verify the current demo through the Go host
+     wrapper
+4. `code-format.md`
+   - the commenting, stanza, and readability rules used for the Go code in
+     this repo
+5. `../progress.md`
    - full working log and investigation history
 
 ## Core Claim

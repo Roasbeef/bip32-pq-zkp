@@ -1,6 +1,59 @@
 # Progress
 
-Date: 2026-04-03
+Date: 2026-04-05
+
+## 2026-04-05 Go Host E2E
+
+The demo now runs end to end through the new Go host boundary instead of the
+old demo-local Rust CLI.
+
+Cleanup status on top of that host migration:
+- the stale Rust `host/` crate has been removed from the repo
+- `cmd/bip32-pq-zkp-host/` is now a thin CLI layer
+- reusable claim/witness/run logic now lives in normal Go package files at the
+  module root
+- the repo now carries local style tooling:
+  - `make fmt`
+  - `make fmt-check`
+  - `make tidy`
+  - `make tidy-check`
+  - `make lint-native`
+  - `make lint`
+  - `make native-check`
+- those native host-side checks were run successfully after the refactor
+
+Current host shape:
+- `cmd/bip32-pq-zkp-host/`
+  - demo-specific Go command
+- `../go-zkvm/host`
+  - typed Go host API
+- `../go-zkvm/host-ffi`
+  - Rust `cdylib`
+- `../go-zkvm/host-core`
+  - shared Rust host logic
+- `../go-zkvm/go-guest-host`
+  - Rust reference CLI kept for now, but no longer the primary demo surface
+
+Current validated result through that path:
+- `go build ./cmd/bip32-pq-zkp-host`
+  - passed
+- `go test ./hostcheck -v`
+  - passed
+- `make prove GO_GOROOT=/Users/roasbeef/sdk/go1.24.4 PRIV_SEED_HEX=000102030405060708090a0b0c0d0e0f BIP32_PATH="86',0',0',0,0" REQUIRE_BIP86=1`
+  - passed
+- `make verify GO_GOROOT=/Users/roasbeef/sdk/go1.24.4 BIP32_PATH="86',0',0',0,0" REQUIRE_BIP86=1 PUBKEY=00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`
+  - passed
+
+Current runtime notes:
+- bare `make prove` still uses the built-in BIP-32 test vector
+- bare `make verify` still uses the default receipt and claim artifact paths
+- the live proving process was sampled with `vmmap` and showed:
+  - `libgo_zkvm_host.dylib`
+  - `Metal.framework`
+  - `MetalPerformanceShaders.framework`
+- so the new Go-host path is still on the Metal-enabled local proving lane
+- latest explicit-witness wall-clock through the Go host wrapper:
+  - `54.76s`
 
 ## Current Extracted Demo Status
 

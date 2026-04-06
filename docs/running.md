@@ -1,8 +1,9 @@
 # Running bip32-pq-zkp
 
-This repo now carries its own local Rust host CLI in `host/`. The sibling
-`go-zkvm` repo is still used for guest packaging, but `bip32-pq-zkp` owns the
-demo-specific `execute`, `prove`, and `verify` commands.
+This repo now carries its own demo-specific Go host command in
+`cmd/bip32-pq-zkp-host/`. The sibling `go-zkvm` repo still provides the guest
+packaging and proving engine boundary, but `bip32-pq-zkp` owns the
+demo-specific `execute`, `prove`, and `verify` UX.
 
 ## Expected Sibling Layout
 
@@ -23,7 +24,7 @@ github.com/roasbeef/
 Fresh-clone setup notes:
 
 - in `../tinygo-zkvm`, run `git submodule update --init --recursive`
-- in `../risc0`, run `git lfs pull` before building the Rust host/prover path
+- in `../risc0`, run `git lfs pull` before building the local prover path
 
 If your default `go` is newer than the TinyGo lane supports, export:
 
@@ -38,7 +39,7 @@ export GO_GOROOT=/path/to/go1.24.4
 3. build the `bip32` guest with TinyGo target `zkvm-platform`
 4. package it with `v1compat.elf`
 5. run host-side reference tests
-6. execute, prove, or verify with the local Rust host
+6. execute, prove, or verify with the demo-specific Go host command
 
 From this repo root, the archive step can be proxied with:
 
@@ -76,6 +77,14 @@ lowercase aliases you have been using interactively:
 m/86'/0'/0'/0/0
 86',0',0',0,0
 ```
+
+Default behavior:
+
+- bare `make execute` or `make prove` uses the built-in BIP-32 test vector
+- bare `make verify` expects the default receipt and claim artifacts from a
+  prior `make prove`
+- bare `make verify` also checks the default `require_bip86=true` policy bit
+- if you set `PRIV_SEED_HEX`, you should also set `BIP32_PATH`
 
 ## Execute
 
@@ -149,9 +158,11 @@ replace `BIP32_PATH=...` with `PATH_COMMITMENT=<hex>`.
 ## Metal Note
 
 On Apple Silicon, guest compilation is still normal CPU work. Metal applies to
-the local proving backend, not to TinyGo compilation. The current release host
-binary links `Metal.framework`, and local proving uses that Metal-enabled lane
-by default unless `RISC0_FORCE_CPU_PROVER=1` is set.
+the local proving backend, not to TinyGo compilation. The current Go-host prove
+path is backed by `go-zkvm/host-ffi`, and the live proof process was confirmed
+to map `Metal.framework` plus the Metal Performance Shaders frameworks during
+proof generation. Local proving still falls back to CPU if
+`RISC0_FORCE_CPU_PROVER=1` is set.
 
 ## Current Known-Good Result
 
@@ -168,7 +179,7 @@ Current built-in vector result:
 - current deterministic image ID:
   - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
 - measured release prove times on this Mac:
-  - split `make prove` with explicit `PRIV_SEED_HEX` / `BIP32_PATH`: `54.38s`
+  - split `make prove` with explicit `PRIV_SEED_HEX` / `BIP32_PATH`: `54.76s`
   - deterministic standalone-archive run: `51.51s`
   - clean-room deterministic rerun: `58.93s`
   - earlier sibling-layout rerun: `54.88s`

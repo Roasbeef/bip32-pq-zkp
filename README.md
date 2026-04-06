@@ -25,7 +25,8 @@ The current local lane works end-to-end on the updated stack:
 - latest-upstream risc0 lane
 - TinyGo `v0.40.1` fork with zkVM support
 - deterministic `libzkvm_platform.a` from `risc0/examples/c-guest make platform-standalone`
-- private witness input from the Rust host
+- private witness input from the demo-specific Go host command backed by
+  `go-zkvm/host`
 - guest commits a structured 72-byte public claim
 - local proving on Apple Silicon uses the Metal-enabled risc0 prover build by
   default unless `RISC0_FORCE_CPU_PROVER=1` is set
@@ -80,7 +81,9 @@ The reusable guest/host plumbing lives in the sibling `go-zkvm` repo.
 Fresh-clone setup notes:
 
 - in sibling `tinygo-zkvm`, run `git submodule update --init --recursive`
-- in sibling `risc0`, run `git lfs pull` before the Rust host/prover build
+- in sibling `risc0`, run `git lfs pull` before the local prover build
+- `make execute`, `make prove`, and `make verify` automatically build the
+  sibling `go-zkvm` `host-ffi` shared library if it is missing or stale
 
 ## Layout
 
@@ -88,8 +91,9 @@ Fresh-clone setup notes:
   - minimal derivation helpers used by the guest and host-side tests
 - `guest/`
   - TinyGo guest for the end-to-end proof
-- `host/`
-  - local Rust prover / verifier CLI for `execute`, `prove`, and `verify`
+- `cmd/bip32-pq-zkp-host/`
+  - demo-specific Go host command for `execute`, `prove`, and `verify`
+  - built on top of `github.com/roasbeef/go-zkvm/host`
 - `hostcheck/`
   - host-side correctness tests against btcd/txscript
 - `docs/`
