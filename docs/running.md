@@ -233,8 +233,9 @@ Current built-in vector result:
 - latest measured proof seal size:
   - `1797880` bytes
 - current deterministic image ID:
-  - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
+  - `b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23`
 - measured release prove times on this Mac:
+  - clean-room published-repos prove run: `54.28s`
   - split `make prove` with explicit `PRIV_SEED_HEX` / `BIP32_PATH`: `54.76s`
   - deterministic standalone-archive run: `51.51s`
   - clean-room deterministic rerun: `58.93s`

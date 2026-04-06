@@ -211,7 +211,7 @@ different `risc0` checkout paths.
 Current deterministic image ID:
 
 ```text
-8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690
+b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23
 ```
 
 Current reproducibility status:
