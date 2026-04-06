@@ -19,7 +19,12 @@ type resolvedWitness struct {
 }
 
 // BuildWitnessStdin serializes the demo witness into the raw byte layout the
-// guest expects on stdin.
+// guest expects on stdin. The wire format is:
+//
+//	[flags:u32_le] [seed_len:u32_le] [seed:bytes]
+//	[path_len:u32_le] [path_component:u32_le...]
+//
+// The second return value reports whether the built-in test vector was used.
 func BuildWitnessStdin(cfg WitnessConfig) ([]byte, bool, error) {
 	witness, err := resolveWitness(cfg)
 	if err != nil {
@@ -60,6 +65,9 @@ func BuildWitnessStdin(cfg WitnessConfig) ([]byte, bool, error) {
 	return stdin.Bytes(), witness.usingTestVector, nil
 }
 
+// resolveWitness determines the private witness material from the provided
+// configuration. It supports three modes: explicit seed+path, built-in test
+// vector, or error if neither is provided.
 func resolveWitness(cfg WitnessConfig) (resolvedWitness, error) {
 	switch {
 	case cfg.SeedHex != "" && cfg.Path != "" && cfg.UseTestVector:
@@ -109,6 +117,8 @@ func resolveWitness(cfg WitnessConfig) (resolvedWitness, error) {
 	}
 }
 
+// finalizeWitness applies the BIP-86 path-shape check if requested, sets the
+// flags field, and returns the resolved witness ready for serialization.
 func finalizeWitness(seed []byte, path []uint32, usingTestVector bool,
 	requireBIP86 bool) (resolvedWitness, error) {
 
@@ -230,12 +240,15 @@ func PathCommitmentFromPath(path []uint32) [32]byte {
 	return out
 }
 
+// decodeHex decodes a hex string, stripping an optional "0x" or "0X" prefix.
 func decodeHex(value string) ([]byte, error) {
 	trimmed := strings.TrimPrefix(strings.TrimPrefix(value, "0x"), "0X")
 
 	return hex.DecodeString(trimmed)
 }
 
+// decodeHexArray32 decodes a hex string into a fixed 32-byte array, returning
+// an error if the decoded length is not exactly 32 bytes.
 func decodeHexArray32(label, value string) ([32]byte, error) {
 	bytes, err := decodeHex(value)
 	if err != nil {

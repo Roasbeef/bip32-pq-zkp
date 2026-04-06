@@ -7,15 +7,31 @@ import zkvmhost "github.com/roasbeef/go-zkvm/host"
 const DefaultGuestPath = "./bip32-platform-latest.bin"
 
 const (
-	bip32HardenedKeyStart   = 0x8000_0000
-	bip86Purpose            = bip32HardenedKeyStart + 86
+	// bip32HardenedKeyStart mirrors bip32.HardenedKeyStart for use in
+	// host-side witness assembly and validation.
+	bip32HardenedKeyStart = 0x8000_0000
+
+	// bip86Purpose is the hardened purpose index for BIP-86 Taproot
+	// derivation paths (86' = 0x80000056).
+	bip86Purpose = bip32HardenedKeyStart + 86
+
+	// witnessFlagRequireBIP86 is the flags-field bit that enables BIP-86
+	// path-shape enforcement inside the guest. This mirrors the guest-side
+	// constant flagRequireBIP86.
 	witnessFlagRequireBIP86 = 1
-	publicClaimSize         = 72
+
+	// publicClaimSize is the expected byte length of the structured
+	// journal committed by the guest: 4 (version) + 4 (flags) + 32
+	// (output key) + 32 (path commitment) = 72 bytes.
+	publicClaimSize = 72
 )
 
 // PublicClaimVersion is the current demo-specific journal schema version.
 const PublicClaimVersion = 1
 
+// defaultBIP32Seed is the built-in test vector seed from BIP-32 test vector 1.
+// This is used when the caller selects --use-test-vector instead of providing
+// explicit witness material.
 var defaultBIP32Seed = []byte{
 	0x00, 0x01, 0x02, 0x03,
 	0x04, 0x05, 0x06, 0x07,
@@ -23,6 +39,9 @@ var defaultBIP32Seed = []byte{
 	0x0c, 0x0d, 0x0e, 0x0f,
 }
 
+// defaultBIP32Path is the built-in test vector derivation path:
+// m/86'/0'/0'/0/0 (the standard BIP-86 Taproot path for the first receive
+// address on mainnet).
 var defaultBIP32Path = []uint32{
 	bip32HardenedKeyStart + 86,
 	bip32HardenedKeyStart,
