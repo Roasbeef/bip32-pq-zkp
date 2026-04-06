@@ -46,41 +46,19 @@ prover. The STARK proof system is itself post-quantum secure (transparent,
 no trusted setup), so the entire construction holds even in a world with
 large-scale quantum computers.
 
-### Future Work
+## Verifier Artifacts
 
-The current proof binds the seed to a Taproot output key but does not bind
-the proof to a specific spending transaction. A production deployment would
-need to commit to the transaction sighash inside the proof so that the
-receipt cannot be replayed to authorize a different spend. That is the
-natural next step toward a consensus-ready migration rule.
+A prove run emits two files: a binary receipt (the STARK proof) and a
+human-readable `claim.json` that names the public fields from the relation
+above. The intended verification flow is:
 
-The private witness is:
+1. Load the receipt and `claim.json`.
+2. Compute or pin the expected image ID for the guest binary.
+3. Verify the receipt against that image ID.
+4. Compare the verified journal output to the claim file.
 
-- the seed
-- the derivation path
-
-The public claim is:
-
-- the final 32-byte Taproot output key
-- a 32-byte commitment to the private derivation path
-- claim version and policy flags
-
-The canonical verifier artifact set is:
-
-- a binary receipt file
-- a human-readable `claim.json` file
-
-The intended verifier flow is:
-
-1. load the receipt
-2. load `claim.json`
-3. compute or pin the expected image ID for the exact guest artifact
-4. verify the receipt against that image ID
-5. compare the verified public journal output to `claim.json`
-
-Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are still
-supported, but they are the advanced/manual path rather than the default
-verifier UX.
+Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` flag checks are also
+supported for callers who want per-field verification without a claim file.
 
 ## How It Works
 
@@ -252,6 +230,15 @@ The current design intentionally keeps this as a single guest image:
   - host-side correctness tests against `btcd/txscript`
 - `docs/`
   - claim statement, runbook, and code-format notes
+
+## Future Work
+
+The current proof binds the seed to a Taproot output key but does not yet
+bind the proof to a specific spending transaction. A production deployment
+would need to commit to the BIP-341 sighash digest inside the proof so that
+the receipt cannot be replayed to authorize a different spend. That is the
+natural next step toward a consensus-ready migration rule. See
+`docs/claim.md` for a detailed v2 claim sketch.
 
 ## Documentation
 
