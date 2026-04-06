@@ -1,3 +1,9 @@
+// Package main is the demo-specific CLI for the bip32-pq-zkp proof. It
+// provides three subcommands: execute (run without proof), prove (generate
+// receipt + claim.json), and verify (check a stored receipt).
+//
+// This is a thin entrypoint that delegates all heavy lifting to the
+// bip32pqzkp.Runner, which in turn uses the go-zkvm/host package.
 package main
 
 import (
@@ -11,6 +17,7 @@ import (
 	bip32pqzkp "github.com/roasbeef/bip32-pq-zkp"
 )
 
+// witnessArgs holds the parsed CLI flags for the private witness input.
 type witnessArgs struct {
 	guest         string
 	seedHex       string
@@ -19,12 +26,15 @@ type witnessArgs struct {
 	requireBIP86  bool
 }
 
+// proveArgs extends witnessArgs with the output artifact paths.
 type proveArgs struct {
 	witness    witnessArgs
 	receiptOut string
 	claimOut   string
 }
 
+// optionalBool implements flag.Value for a bool flag that distinguishes
+// "not set" from "set to false". Used for --require-bip86 in verify mode.
 type optionalBool struct {
 	set   bool
 	value bool
@@ -52,6 +62,7 @@ func (o *optionalBool) Set(value string) error {
 	return nil
 }
 
+// verifyArgs holds the parsed CLI flags for receipt verification.
 type verifyArgs struct {
 	guest                  string
 	receiptIn              string
@@ -227,6 +238,8 @@ func parseVerifyArgs(argv []string) (verifyArgs, error) {
 	return args, nil
 }
 
+// execute runs the guest in execute-only mode (no proof generation) and
+// prints the decoded public claim plus session metadata.
 func execute(runner *bip32pqzkp.Runner, args witnessArgs) error {
 	report, err := runner.Execute(bip32pqzkp.ExecuteConfig{
 		GuestPath: args.guest,
@@ -256,6 +269,8 @@ func execute(runner *bip32pqzkp.Runner, args witnessArgs) error {
 	return nil
 }
 
+// prove generates a STARK proof and writes the receipt and claim.json
+// verifier artifacts to the paths specified in args.
 func prove(runner *bip32pqzkp.Runner, args proveArgs) error {
 	report, err := runner.Prove(bip32pqzkp.ProveConfig{
 		GuestPath:         args.witness.guest,
@@ -292,6 +307,9 @@ func prove(runner *bip32pqzkp.Runner, args proveArgs) error {
 	return nil
 }
 
+// verify checks a stored receipt against the current guest image ID and
+// compares the decoded claim against the canonical claim.json or explicit
+// per-field expectations.
 func verify(runner *bip32pqzkp.Runner, args verifyArgs) error {
 	report, err := runner.Verify(bip32pqzkp.VerifyConfig{
 		GuestPath:        args.guest,
@@ -326,6 +344,7 @@ func verify(runner *bip32pqzkp.Runner, args verifyArgs) error {
 	return nil
 }
 
+// printWitnessSummary prints a one-line summary of the witness mode used.
 func printWitnessSummary(requireBIP86, usingTestVector bool) {
 	witnessDesc := "private BIP-32 witness"
 	if requireBIP86 {
@@ -340,6 +359,7 @@ func printWitnessSummary(requireBIP86, usingTestVector bool) {
 	fmt.Printf("✓ Sending %s\n", witnessDesc)
 }
 
+// printClaim prints the decoded public claim fields in human-readable form.
 func printClaim(claim bip32pqzkp.PublicClaim) {
 	fmt.Println("Claim:")
 	fmt.Printf("  Version: %d\n", claim.Version)
@@ -349,6 +369,8 @@ func printClaim(claim bip32pqzkp.PublicClaim) {
 	fmt.Printf("  Path commitment: %s\n", claim.PathCommitmentHex())
 }
 
+// printAccelerationStatus reports whether Metal GPU acceleration is available
+// for local proving on Apple Silicon.
 func printAccelerationStatus() {
 	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
 		if os.Getenv("RISC0_FORCE_CPU_PROVER") != "" {
@@ -363,6 +385,7 @@ func printAccelerationStatus() {
 	}
 }
 
+// witnessConfigFromArgs converts parsed CLI flags into a WitnessConfig.
 func witnessConfigFromArgs(args witnessArgs) bip32pqzkp.WitnessConfig {
 	return bip32pqzkp.WitnessConfig{
 		SeedHex:       args.seedHex,
@@ -372,6 +395,8 @@ func witnessConfigFromArgs(args witnessArgs) bip32pqzkp.WitnessConfig {
 	}
 }
 
+// verifyExpectationsFromArgs converts parsed verify CLI flags into a
+// VerifyExpectations struct.
 func verifyExpectationsFromArgs(args verifyArgs) bip32pqzkp.VerifyExpectations {
 	expectations := bip32pqzkp.VerifyExpectations{
 		PubKeyHex:         args.expectedPubkey,
@@ -385,6 +410,7 @@ func verifyExpectationsFromArgs(args verifyArgs) bip32pqzkp.VerifyExpectations {
 	return expectations
 }
 
+// fatalf prints a formatted error to stderr and exits with code 1.
 func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	os.Exit(1)
