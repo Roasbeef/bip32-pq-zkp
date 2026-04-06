@@ -8,14 +8,20 @@ import (
 )
 
 var (
-	ErrInvalidBIP86Path    = errors.New("invalid bip86 path")
+	// ErrInvalidBIP86Path indicates the provided path is not BIP-86 shaped.
+	ErrInvalidBIP86Path = errors.New("invalid bip86 path")
+	// ErrInvalidTaprootTweak indicates the tweak scalar was out of range.
 	ErrInvalidTaprootTweak = errors.New("invalid taproot tweak")
-	ErrInvalidTaprootKey   = errors.New("invalid taproot key")
-	tagTapTweak            = []byte("TapTweak")
+	// ErrInvalidTaprootKey indicates tweak addition produced an
+	// invalid key.
+	ErrInvalidTaprootKey = errors.New("invalid taproot key")
+	tagTapTweak          = []byte("TapTweak")
 )
 
 const (
+	// BIP86Purpose is the hardened BIP-86 purpose component (`86'`).
 	BIP86Purpose = HardenedKeyStart + 86
+	// BIP86PathLen is the expected number of path elements for BIP-86.
 	BIP86PathLen = 5
 )
 
@@ -23,7 +29,10 @@ type taprootDeriveOptions struct {
 	requireBIP86Path bool
 }
 
-func parseTaprootDeriveOptions(opts ...TaprootDeriveOption) taprootDeriveOptions {
+func parseTaprootDeriveOptions(
+	opts ...TaprootDeriveOption,
+) taprootDeriveOptions {
+
 	var options taprootDeriveOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -53,7 +62,10 @@ func WithBIP86PathVerification() TaprootDeriveOption {
 // DeriveTaprootOutputKey derives the BIP-32 child private key at the given
 // path, converts it to the BIP-340 even-Y internal key, then computes the
 // key-spend-only Taproot output key tweak.
-func DeriveTaprootOutputKey(seed []byte, path []uint32, opts ...TaprootDeriveOption) ([]byte, error) {
+func DeriveTaprootOutputKey(
+	seed []byte, path []uint32, opts ...TaprootDeriveOption,
+) ([]byte, error) {
+
 	options := parseTaprootDeriveOptions(opts...)
 	if options.requireBIP86Path && !IsBIP86Path(path) {
 		return nil, ErrInvalidBIP86Path
@@ -96,19 +108,27 @@ func IsBIP86Path(path []uint32) bool {
 
 // ComputeTaprootKeyNoScript mirrors txscript.ComputeTaprootKeyNoScript for the
 // BIP-86 key-spend-only case.
-func ComputeTaprootKeyNoScript(pubKey *secp.PublicKey) (*secp.PublicKey, error) {
+func ComputeTaprootKeyNoScript(
+	pubKey *secp.PublicKey,
+) (*secp.PublicKey, error) {
+
 	return ComputeTaprootOutputKey(pubKey, nil)
 }
 
 // ComputeTaprootOutputKey mirrors txscript.ComputeTaprootOutputKey using the
 // local secp256k1 primitives.
-func ComputeTaprootOutputKey(pubKey *secp.PublicKey, scriptRoot []byte) (*secp.PublicKey, error) {
+func ComputeTaprootOutputKey(
+	pubKey *secp.PublicKey, scriptRoot []byte,
+) (*secp.PublicKey, error) {
+
 	internalKey, err := liftXEven(pubKey)
 	if err != nil {
 		return nil, err
 	}
 
-	tapTweakHash := taggedHash(tagTapTweak, serializeXOnly(internalKey), scriptRoot)
+	tapTweakHash := taggedHash(
+		tagTapTweak, serializeXOnly(internalKey), scriptRoot,
+	)
 
 	var tweakScalar secp.ModNScalar
 	if overflow := tweakScalar.SetBytes(&tapTweakHash); overflow != 0 {
@@ -121,7 +141,9 @@ func ComputeTaprootOutputKey(pubKey *secp.PublicKey, scriptRoot []byte) (*secp.P
 	var tweakPoint, taprootKey secp.JacobianPoint
 	secp.ScalarBaseMultNonConst(&tweakScalar, &tweakPoint)
 	secp.AddNonConst(&internalPoint, &tweakPoint, &taprootKey)
-	if (taprootKey.X.IsZero() && taprootKey.Y.IsZero()) || taprootKey.Z.IsZero() {
+	if (taprootKey.X.IsZero() && taprootKey.Y.IsZero()) ||
+		taprootKey.Z.IsZero() {
+
 		return nil, ErrInvalidTaprootKey
 	}
 

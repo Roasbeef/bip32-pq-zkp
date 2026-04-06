@@ -1,0 +1,256 @@
+package bip32pqzkp
+
+import (
+	"errors"
+	"fmt"
+	"os"
+
+	zkvmhost "github.com/roasbeef/go-zkvm/host"
+)
+
+// NewRunner creates a demo-specific host runner on top of the reusable
+// go-zkvm host package.
+func NewRunner(opts ...zkvmhost.ClientOption) (*Runner, error) {
+	client, err := zkvmhost.New(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Runner{client: client}, nil
+}
+
+// Close releases the underlying host client.
+func (r *Runner) Close() error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+
+	return r.client.Close()
+}
+
+// Execute runs the guest without generating a proof and returns the decoded
+// public claim plus session metadata.
+func (r *Runner) Execute(cfg ExecuteConfig) (*ExecuteReport, error) {
+	guestPath, guestBinary, imageID, err := r.loadGuest(cfg.GuestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	stdin, usingTestVector, err := BuildWitnessStdin(cfg.Witness)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := r.client.Execute(zkvmhost.ExecuteRequest{
+		GuestBinary: guestBinary,
+		Stdin:       stdin,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("execute guest: %w", err)
+	}
+
+	claim, err := DecodePublicClaim(result.Journal)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ExecuteReport{
+		GuestPath:       guestPath,
+		GuestSize:       len(guestBinary),
+		ImageID:         imageID,
+		UsingTestVector: usingTestVector,
+		Claim:           claim,
+		ExitCode:        result.ExitCode,
+		JournalSize:     len(result.Journal),
+		SegmentCount:    result.SegmentCount,
+		SessionRows:     result.SessionRows,
+	}, nil
+}
+
+// Prove runs the guest through the local prover, writes the receipt and claim
+// artifacts, and returns the decoded public claim plus proof metadata.
+func (r *Runner) Prove(cfg ProveConfig) (*ProveReport, error) {
+	switch {
+	case cfg.ReceiptOutputPath == "":
+		return nil, errors.New("--receipt-out is required")
+
+	case cfg.ClaimOutputPath == "":
+		return nil, errors.New("--claim-out is required")
+	}
+
+	guestPath, guestBinary, imageID, err := r.loadGuest(cfg.GuestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	stdin, usingTestVector, err := BuildWitnessStdin(cfg.Witness)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := r.client.Prove(zkvmhost.ProveRequest{
+		GuestBinary: guestBinary,
+		Stdin:       stdin,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("prove guest: %w", err)
+	}
+
+	claim, err := DecodePublicClaim(result.Journal)
+	if err != nil {
+		return nil, err
+	}
+
+	switch {
+	case claim.Version != PublicClaimVersion:
+		return nil, fmt.Errorf(
+			"unexpected claim version: got %d, want %d",
+			claim.Version, PublicClaimVersion,
+		)
+
+	case claim.RequireBIP86() != cfg.Witness.RequireBIP86:
+		return nil, fmt.Errorf(
+			"claim policy mismatch: "+
+				"journal says require_bip86=%v, "+
+				"command used require_bip86=%v",
+			claim.RequireBIP86(), cfg.Witness.RequireBIP86,
+		)
+	}
+
+	claimFile := NewClaimFile(
+		imageID, claim, result.Journal, result.SealBytes,
+		result.ReceiptEncoding,
+	)
+
+	if err := writeReceipt(
+		cfg.ReceiptOutputPath, result.Receipt,
+	); err != nil {
+		return nil, err
+	}
+	if err := WriteClaimFile(cfg.ClaimOutputPath, claimFile); err != nil {
+		return nil, err
+	}
+
+	return &ProveReport{
+		GuestPath:         guestPath,
+		GuestSize:         len(guestBinary),
+		ImageID:           imageID,
+		UsingTestVector:   usingTestVector,
+		Claim:             claim,
+		ReceiptOutputPath: cfg.ReceiptOutputPath,
+		ClaimOutputPath:   cfg.ClaimOutputPath,
+		JournalSize:       len(result.Journal),
+		ReceiptEncoding:   result.ReceiptEncoding,
+		ProverName:        result.ProverName,
+		SealBytes:         result.SealBytes,
+	}, nil
+}
+
+// Verify checks a stored receipt against the current guest image ID and then
+// validates the decoded public claim against either `claim.json` or explicit
+// public expectations.
+func (r *Runner) Verify(cfg VerifyConfig) (*VerifyReport, error) {
+	if cfg.ReceiptInputPath == "" {
+		return nil, errors.New("--receipt-in is required")
+	}
+
+	guestPath, guestBinary, imageID, err := r.loadGuest(cfg.GuestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	receiptBytes, err := os.ReadFile(cfg.ReceiptInputPath)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"read receipt `%s`: %w", cfg.ReceiptInputPath, err,
+		)
+	}
+
+	var expectedClaim *ClaimFile
+	if cfg.ClaimInputPath != "" {
+		claimFile, err := ReadClaimFile(cfg.ClaimInputPath)
+		if err != nil {
+			return nil, err
+		}
+
+		expectedClaim = &claimFile
+	}
+
+	if expectedClaim == nil && !cfg.Expectations.hasAny() {
+		return nil, errors.New(
+			"verify requires --claim-in or at least one explicit " +
+				"expectation flag",
+		)
+	}
+
+	result, err := r.client.Verify(zkvmhost.VerifyRequest{
+		Receipt: receiptBytes,
+		ImageID: imageID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"verify receipt against image ID: %w", err,
+		)
+	}
+
+	claim, err := DecodePublicClaim(result.Journal)
+	if err != nil {
+		return nil, err
+	}
+
+	verifiedClaim := NewClaimFile(
+		imageID, claim, result.Journal, result.SealBytes,
+		result.ReceiptEncoding,
+	)
+
+	if expectedClaim != nil {
+		if err := verifyClaimFileMatches(
+			*expectedClaim, verifiedClaim,
+		); err != nil {
+			return nil, err
+		}
+	}
+	if err := verifyClaimExpectations(cfg.Expectations, claim); err != nil {
+		return nil, err
+	}
+
+	return &VerifyReport{
+		GuestPath:        guestPath,
+		GuestSize:        len(guestBinary),
+		ImageID:          imageID,
+		Claim:            claim,
+		ClaimInputPath:   cfg.ClaimInputPath,
+		ReceiptInputPath: cfg.ReceiptInputPath,
+		JournalSize:      len(result.Journal),
+		ReceiptEncoding:  result.ReceiptEncoding,
+		SealBytes:        result.SealBytes,
+	}, nil
+}
+
+func (r *Runner) loadGuest(path string) (string, []byte, string, error) {
+	guestPath := path
+	if guestPath == "" {
+		guestPath = DefaultGuestPath
+	}
+
+	guestBinary, err := zkvmhost.ReadGuestFile(guestPath)
+	if err != nil {
+		return "", nil, "", fmt.Errorf(
+			"read guest binary `%s`: %w", guestPath, err,
+		)
+	}
+
+	imageID, err := r.client.ComputeImageID(guestBinary)
+	if err != nil {
+		return "", nil, "", fmt.Errorf("compute image id: %w", err)
+	}
+
+	return guestPath, guestBinary, imageID, nil
+}
+
+func (e VerifyExpectations) hasAny() bool {
+	return e.PubKeyHex != "" ||
+		e.PathCommitmentHex != "" ||
+		e.Path != "" ||
+		e.RequireBIP86 != nil
+}

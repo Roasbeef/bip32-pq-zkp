@@ -10,16 +10,22 @@ import (
 )
 
 const (
+	// HardenedKeyStart is the BIP-32 bit used to mark hardened children.
 	HardenedKeyStart = 0x80000000
 	minSeedBytes     = 16
 	maxSeedBytes     = 64
 )
 
 var (
+	// ErrInvalidSeedLength indicates the seed is outside the BIP-32 bounds.
 	ErrInvalidSeedLength = errors.New("invalid seed length")
-	ErrInvalidMasterKey  = errors.New("invalid master key")
-	ErrInvalidChildKey   = errors.New("invalid child key")
-	masterKeySalt        = []byte("Bitcoin seed")
+	// ErrInvalidMasterKey indicates the seed-derived master key was
+	// invalid.
+	ErrInvalidMasterKey = errors.New("invalid master key")
+	// ErrInvalidChildKey indicates a child derivation produced an
+	// invalid key.
+	ErrInvalidChildKey = errors.New("invalid child key")
+	masterKeySalt      = []byte("Bitcoin seed")
 )
 
 // DeriveXOnly derives the BIP-32 child private key at the given path and
@@ -62,7 +68,11 @@ func DerivePrivateKey(seed []byte, path []uint32) (*secp.PrivateKey, error) {
 	return secp.NewPrivateKey(&key), nil
 }
 
-func deriveChild(parentKey *secp.ModNScalar, parentChainCode [32]byte, index uint32) (secp.ModNScalar, [32]byte, error) {
+func deriveChild(
+	parentKey *secp.ModNScalar, parentChainCode [32]byte,
+	index uint32,
+) (secp.ModNScalar, [32]byte, error) {
+
 	var data [37]byte
 	parentPriv := secp.NewPrivateKey(parentKey)
 
@@ -77,7 +87,9 @@ func deriveChild(parentKey *secp.ModNScalar, parentChainCode [32]byte, index uin
 	sum := hmacSHA512(parentChainCode[:], data[:])
 
 	var tweak secp.ModNScalar
-	if overflow := tweak.SetByteSlice(sum[:32]); overflow || tweak.IsZero() {
+	if overflow := tweak.SetByteSlice(sum[:32]); overflow ||
+		tweak.IsZero() {
+
 		return secp.ModNScalar{}, [32]byte{}, ErrInvalidChildKey
 	}
 

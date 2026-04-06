@@ -1,0 +1,34 @@
+run:
+  go: "1.24.4"
+  timeout: 10m
+
+linters-settings:
+  gofmt:
+    simplify: true
+
+  lll:
+    line-length: 80
+    tab-width: 8
+
+  tagliatelle:
+    case:
+      rules:
+        json: snake
+
+  whitespace:
+    multi-func: true
+    multi-if: true
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gofmt
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - staticcheck
+    - stylecheck
+    - tagliatelle
+    - whitespace

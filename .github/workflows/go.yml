@@ -1,0 +1,48 @@
+name: Go Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bip32-pq-zkp
+        uses: actions/checkout@v4
+        with:
+          path: bip32-pq-zkp
+
+      - name: Checkout go-zkvm sibling
+        uses: actions/checkout@v4
+        with:
+          repository: Roasbeef/go-zkvm
+          path: go-zkvm
+          token: ${{ secrets.ROASBEEF_CI_TOKEN || github.token }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.4"
+
+      - name: fmt-check
+        working-directory: bip32-pq-zkp
+        run: make fmt-check
+
+      - name: tidy-check
+        working-directory: bip32-pq-zkp
+        run: make tidy-check
+
+      - name: lint-native
+        working-directory: bip32-pq-zkp
+        run: make lint-native
+
+      - name: native-check
+        working-directory: bip32-pq-zkp
+        run: make native-check

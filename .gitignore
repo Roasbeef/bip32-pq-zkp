@@ -2,3 +2,5 @@
 *.elf
 artifacts/
 host/target/
+bip32-pq-zkp-host
+tools/custom-gcl

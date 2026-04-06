@@ -7,24 +7,36 @@ import (
 )
 
 const (
-	ClaimVersion          = 1
+	// ClaimVersion is the current serialized public-claim schema version.
+	ClaimVersion = 1
+	// ClaimFlagRequireBIP86 marks claims that enforce the BIP-86
+	// path shape.
 	ClaimFlagRequireBIP86 = 1
-	PublicClaimSize       = 72
+	// PublicClaimSize is the serialized journal size of a public claim.
+	PublicClaimSize = 72
 )
 
+// ErrInvalidPublicClaimSize indicates the committed journal has the wrong size.
 var ErrInvalidPublicClaimSize = errors.New("invalid public claim size")
 
 // PublicClaim is the verifier-visible claim material committed by the guest.
 type PublicClaim struct {
-	Version          uint32
-	Flags            uint32
+	// Version identifies the serialized claim format.
+	Version uint32
+	// Flags records verifier-visible policy bits.
+	Flags uint32
+	// TaprootOutputKey is the final x-only BIP-86 output key.
 	TaprootOutputKey [32]byte
-	PathCommitment   [32]byte
+	// PathCommitment commits to the private derivation path.
+	PathCommitment [32]byte
 }
 
 // DeriveTaprootClaim derives the Taproot output key and packages the
 // verifier-visible claim material for the current private witness.
-func DeriveTaprootClaim(seed []byte, path []uint32, opts ...TaprootDeriveOption) (PublicClaim, error) {
+func DeriveTaprootClaim(
+	seed []byte, path []uint32, opts ...TaprootDeriveOption,
+) (PublicClaim, error) {
+
 	options := parseTaprootDeriveOptions(opts...)
 
 	outputKey, err := DeriveTaprootOutputKey(seed, path, opts...)
