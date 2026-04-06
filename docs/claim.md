@@ -1,5 +1,28 @@
 # Claim
 
+## Canonical Verifier Artifacts
+
+The canonical verifier artifact set for this repo is:
+
+- a serialized receipt file
+- a `claim.json` file
+
+The receipt is the actual proof artifact. `claim.json` is the stable,
+human-readable description of the public statement that the receipt is meant to
+prove.
+
+The intended default verification flow is:
+
+1. load the receipt
+2. load `claim.json`
+3. compute or pin the expected image ID for the exact guest artifact
+4. verify the receipt against that image ID
+5. compare the verified public journal output to `claim.json`
+
+Direct verification against explicit `PUBKEY`, `PATH_COMMITMENT`, or
+`BIP32_PATH` expectations is still supported, but it is the advanced/manual
+path rather than the canonical verifier UX.
+
 ## Public Claim
 
 The current proof statement is:
@@ -56,6 +79,86 @@ SHA256("bip32-pq-zkp:path:v1" || len(path)_le32 || each_component_le32)
 
 The current design keeps both private. The verifier only learns the Taproot
 output key, the path commitment, and the policy/version fields.
+
+## claim.json Schema
+
+The current `claim.json` artifact contains:
+
+- `schema_version`
+- `image_id`
+- `claim_version`
+- `claim_flags`
+- `require_bip86`
+- `taproot_output_key`
+- `path_commitment`
+- `journal_hex`
+- `journal_size_bytes`
+- `proof_seal_bytes`
+- `receipt_encoding`
+
+Field meaning:
+
+- `schema_version`
+  - version of the JSON envelope itself
+- `image_id`
+  - exact guest image ID the proof was generated against
+- `claim_version`
+  - version of the structured 72-byte journal format
+- `claim_flags`
+  - raw verifier-visible policy bitfield from the journal
+- `require_bip86`
+  - decoded convenience view of the current public BIP-86 policy bit
+- `taproot_output_key`
+  - final x-only Taproot output key as lowercase hex
+- `path_commitment`
+  - 32-byte commitment to the private path as lowercase hex
+- `journal_hex`
+  - raw committed public journal bytes as lowercase hex
+- `journal_size_bytes`
+  - byte length of the committed journal
+- `proof_seal_bytes`
+  - measured proof seal size in bytes
+- `receipt_encoding`
+  - serialization encoding of the receipt artifact
+
+## v1 Compatibility Guarantees
+
+For `schema_version = 1` and `claim_version = 1`, the intended compatibility
+contract is:
+
+- stable:
+  - the `claim.json` field names listed above
+  - the meaning of those fields
+  - the 72-byte public journal layout
+  - `claim_flags` bit `0` meaning "require BIP-86 path shape"
+  - `taproot_output_key` as the final x-only output key
+  - `path_commitment` as the SHA-256 commitment over the private path encoding
+  - `journal_hex` being the raw bytes of the committed public claim
+- stable for the current documented lane:
+  - `receipt_encoding = "borsh"`
+- informational only:
+  - `proof_seal_bytes`
+  - proof wall-clock times published in the docs
+
+Image ID expectations:
+
+- the image ID is artifact-specific and should be treated as part of the exact
+  built guest
+- the image ID is expected to change when any of these change:
+  - guest code
+  - packaged kernel ELF
+  - platform archive
+  - TinyGo toolchain / linker output
+  - any other input that changes the final guest artifact bytes
+- the image ID is not expected to change when only the private witness changes
+
+Version-bump expectations:
+
+- bump `schema_version` if the `claim.json` field names or meanings change
+- bump `claim_version` if the structured 72-byte journal layout or public claim
+  semantics change
+- adding new optional JSON fields can remain backward-compatible if existing
+  fields keep the same names and meanings
 
 ## Optional Policy Layer
 

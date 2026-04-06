@@ -14,9 +14,26 @@ The verifier-facing public claim is:
 - a 32-byte commitment to the private derivation path
 - claim version and policy flags
 
+The canonical verifier artifact set is:
+
+- a binary receipt file
+- a human-readable `claim.json` file that names the public claim fields and the
+  image ID they were proven against
+
 The core public target is still the Taproot output key. The extra public fields
 let the verifier bind the proof to a path commitment and an optional BIP-86
 policy flag without revealing the private witness itself.
+
+The intended default verifier flow is:
+
+1. load the receipt
+2. load `claim.json`
+3. compute or pin the expected image ID for the exact guest artifact
+4. verify the receipt against that image ID
+5. compare the verified public journal output to `claim.json`
+
+Direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are still supported,
+but they are the advanced/manual path rather than the canonical one.
 
 ## Current Status
 

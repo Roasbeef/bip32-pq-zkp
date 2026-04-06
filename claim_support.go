@@ -46,8 +46,8 @@ func (c PublicClaim) PathCommitmentHex() string {
 	return hex.EncodeToString(c.PathCommitment[:])
 }
 
-// NewClaimFile converts the verified journal into the human-readable
-// `claim.json` artifact used by the demo.
+// NewClaimFile converts the verified journal into the canonical
+// human-readable `claim.json` verifier artifact.
 func NewClaimFile(imageID string, claim PublicClaim, journal []byte,
 	sealBytes uint64, receiptEncoding string) ClaimFile {
 
@@ -66,7 +66,8 @@ func NewClaimFile(imageID string, claim PublicClaim, journal []byte,
 	}
 }
 
-// ReadClaimFile loads a previously written `claim.json` artifact.
+// ReadClaimFile loads a previously written canonical `claim.json` verifier
+// artifact.
 func ReadClaimFile(path string) (ClaimFile, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
@@ -83,7 +84,8 @@ func ReadClaimFile(path string) (ClaimFile, error) {
 	return claim, nil
 }
 
-// WriteClaimFile writes the human-readable claim artifact to disk.
+// WriteClaimFile writes the canonical human-readable `claim.json`
+// verifier artifact to disk.
 func WriteClaimFile(path string, claim ClaimFile) error {
 	if err := ensureParentDir(path); err != nil {
 		return err

@@ -123,8 +123,8 @@ type PublicClaim struct {
 	PathCommitment [32]byte
 }
 
-// ClaimFile is the human-readable verifier artifact written alongside the
-// receipt.
+// ClaimFile is the canonical human-readable verifier artifact written
+// alongside the receipt.
 type ClaimFile struct {
 	// SchemaVersion identifies the JSON artifact schema.
 	SchemaVersion uint32 `json:"schema_version"`
@@ -152,10 +152,12 @@ type ClaimFile struct {
 	// JournalSizeBytes is the byte length of the committed journal.
 	JournalSizeBytes int `json:"journal_size_bytes"`
 
-	// ProofSealBytes is the size of the proof seal in bytes.
+	// ProofSealBytes is the size of the proof seal in bytes. It is
+	// informative metadata rather than a compatibility guarantee.
 	ProofSealBytes uint64 `json:"proof_seal_bytes"`
 
-	// ReceiptEncoding names the serialized receipt encoding.
+	// ReceiptEncoding names the serialized receipt encoding expected for
+	// the receipt artifact.
 	ReceiptEncoding string `json:"receipt_encoding"`
 }
 

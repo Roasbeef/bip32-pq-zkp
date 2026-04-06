@@ -86,6 +86,17 @@ Current prover / verifier flow:
     - or direct public expectations such as `PUBKEY`, `BIP32_PATH`, and
       `REQUIRE_BIP86`
 
+Verifier-artifact policy update:
+- the canonical verifier artifact set is now:
+  - the binary receipt
+  - the emitted `claim.json`
+- direct `PUBKEY`, `PATH_COMMITMENT`, and `BIP32_PATH` checks remain supported,
+  but are now treated as the advanced/manual path
+- the v1 compatibility guarantees are now written down in:
+  - `docs/claim.md`
+  - with `proof_seal_bytes` explicitly treated as informative metadata rather
+    than a stability guarantee
+
 Current known-good built-in vector:
 - final Taproot output key:
   - `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6`

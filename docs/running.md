@@ -86,6 +86,15 @@ Default behavior:
 - bare `make verify` also checks the default `require_bip86=true` policy bit
 - if you set `PRIV_SEED_HEX`, you should also set `BIP32_PATH`
 
+Canonical verifier path:
+
+- `make prove` emits both:
+  - a receipt
+  - a canonical `claim.json`
+- `make verify` is intended to verify that pair by default
+- direct `PUBKEY`, `PATH_COMMITMENT`, or `BIP32_PATH` checks are optional
+  tighter/manual checks, not the primary verifier UX
+
 ## Execute
 
 Built-in test vector:
@@ -123,17 +132,18 @@ make prove GO_GOROOT=/path/to/go1.24.4 \
 This writes:
 
 - receipt artifact: `./artifacts/bip32-test-vector.receipt`
-- readable claim metadata: `./artifacts/bip32-test-vector.claim.json`
+- canonical claim artifact: `./artifacts/bip32-test-vector.claim.json`
 
 ## Verify
 
-Verify against the emitted claim artifact:
+Verify against the emitted canonical claim artifact:
 
 ```bash
 make verify GO_GOROOT=/path/to/go1.24.4
 ```
 
-Verify against both the claim artifact and explicit expected public material:
+Verify against both the canonical claim artifact and explicit expected public
+material:
 
 ```bash
 make verify GO_GOROOT=/path/to/go1.24.4 \
@@ -154,6 +164,14 @@ make verify GO_GOROOT=/path/to/go1.24.4 \
 
 If the verifier knows the path commitment directly instead of the path itself,
 replace `BIP32_PATH=...` with `PATH_COMMITMENT=<hex>`.
+
+Compatibility notes for verifiers:
+
+- the primary compatibility surface is `claim.json` plus the receipt file
+- the current documented receipt encoding is `borsh`
+- `proof_seal_bytes` is informative, not a stability guarantee
+- image IDs are expected to change when the guest artifact changes, but not
+  when only the private witness changes
 
 ## Metal Note
 

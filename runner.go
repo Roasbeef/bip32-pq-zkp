@@ -147,8 +147,8 @@ func (r *Runner) Prove(cfg ProveConfig) (*ProveReport, error) {
 }
 
 // Verify checks a stored receipt against the current guest image ID and then
-// validates the decoded public claim against either `claim.json` or explicit
-// public expectations.
+// validates the decoded public claim against the canonical `claim.json`
+// artifact or explicit public expectations.
 func (r *Runner) Verify(cfg VerifyConfig) (*VerifyReport, error) {
 	if cfg.ReceiptInputPath == "" {
 		return nil, errors.New("--receipt-in is required")
