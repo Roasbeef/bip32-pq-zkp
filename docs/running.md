@@ -71,6 +71,27 @@ lowercase aliases you have been using interactively:
 - `RECEIPT`
 - `CLAIM`
 
+Variable roles:
+
+- prove/execute witness inputs:
+  - `PRIV_SEED_HEX`
+  - `BIP32_PATH`
+  - `REQUIRE_BIP86`
+- verify-time expectations:
+  - `CLAIM`
+  - `PUBKEY`
+  - `PATH_COMMITMENT`
+  - `BIP32_PATH`
+  - `REQUIRE_BIP86`
+
+Important distinction:
+
+- `PUBKEY` and `PATH_COMMITMENT` are verifier-side checks only
+- they are never private proving inputs
+- for `make verify`, `BIP32_PATH` means "public path supplied to the verifier
+  so it can recompute the expected path commitment"
+- for `make prove`, `BIP32_PATH` is private witness input sent to the guest
+
 `BIP32_PATH` accepts either slash form or comma form:
 
 ```text

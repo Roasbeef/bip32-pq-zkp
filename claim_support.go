@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 )
 
 // DecodePublicClaim decodes the structured 72-byte journal format committed by
@@ -137,7 +136,19 @@ func verifyClaimFileMatches(expected ClaimFile, verified ClaimFile) error {
 			expected.ImageID, verified.ImageID,
 		)
 	}
-	if !reflect.DeepEqual(verified, expected) {
+
+	matches := expected.SchemaVersion == verified.SchemaVersion &&
+		expected.ImageID == verified.ImageID &&
+		expected.ClaimVersion == verified.ClaimVersion &&
+		expected.ClaimFlags == verified.ClaimFlags &&
+		expected.RequireBIP86 == verified.RequireBIP86 &&
+		expected.TaprootOutputKey == verified.TaprootOutputKey &&
+		expected.PathCommitment == verified.PathCommitment &&
+		expected.JournalHex == verified.JournalHex &&
+		expected.JournalSizeBytes == verified.JournalSizeBytes &&
+		expected.ReceiptEncoding == verified.ReceiptEncoding
+
+	if !matches {
 		return errors.New(
 			"claim file does not match the verified public " +
 				"receipt output",
