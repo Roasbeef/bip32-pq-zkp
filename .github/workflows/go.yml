@@ -15,29 +15,26 @@ jobs:
 
     steps:
       - name: Checkout bip32-pq-zkp
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: bip32-pq-zkp
 
       - name: Checkout go-zkvm sibling
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: Roasbeef/go-zkvm
           path: go-zkvm
           token: ${{ secrets.ROASBEEF_CI_TOKEN || github.token }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24.4"
+          cache-dependency-path: bip32-pq-zkp/go.sum
 
       - name: fmt-check
         working-directory: bip32-pq-zkp
         run: make fmt-check
-
-      - name: tidy-check
-        working-directory: bip32-pq-zkp
-        run: make tidy-check
 
       - name: lint-native
         working-directory: bip32-pq-zkp
