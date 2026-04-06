@@ -18,6 +18,8 @@ var (
 	// invalid key.
 	ErrInvalidTaprootKey = errors.New("invalid taproot key")
 
+	// tagTapTweak is the BIP-341 domain separator used for tagged hashing
+	// in the Taproot output key tweak computation.
 	tagTapTweak = []byte("TapTweak")
 )
 
@@ -29,10 +31,14 @@ const (
 	BIP86PathLen = 5
 )
 
+// taprootDeriveOptions holds optional policy flags applied during Taproot
+// output key derivation.
 type taprootDeriveOptions struct {
 	requireBIP86Path bool
 }
 
+// parseTaprootDeriveOptions applies the provided functional options and
+// returns the resolved configuration.
 func parseTaprootDeriveOptions(
 	opts ...TaprootDeriveOption,
 ) taprootDeriveOptions {
@@ -44,6 +50,8 @@ func parseTaprootDeriveOptions(
 	return options
 }
 
+// claimFlags converts the resolved derive options into the uint32 flags
+// field used in the serialized public claim.
 func (options taprootDeriveOptions) claimFlags() uint32 {
 	var flags uint32
 	if options.requireBIP86Path {
@@ -155,6 +163,9 @@ func ComputeTaprootOutputKey(
 	return secp.NewPublicKey(&taprootKey.X, &taprootKey.Y), nil
 }
 
+// liftXEven normalizes a public key to have an even Y coordinate, as
+// required by BIP-340 for x-only key serialization. This is the "lift_x"
+// operation: given the same x-coordinate, choose the point with even Y.
 func liftXEven(pubKey *secp.PublicKey) (*secp.PublicKey, error) {
 	compressed := pubKey.SerializeCompressed()
 	var evenCompressed [secp.PubKeyBytesLenCompressed]byte
@@ -163,6 +174,12 @@ func liftXEven(pubKey *secp.PublicKey) (*secp.PublicKey, error) {
 	return secp.ParsePubKey(evenCompressed[:])
 }
 
+// taggedHash implements the BIP-340 tagged hash:
+//
+//	SHA256(SHA256(tag) || SHA256(tag) || msg...)
+//
+// The double-hashed tag prefix ensures domain separation between different
+// uses of SHA-256 in the Taproot construction.
 func taggedHash(tag []byte, msgs ...[]byte) [32]byte {
 	tagHash := sha256.Sum256(tag)
 	h := sha256.New()
