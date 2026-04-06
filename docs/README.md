@@ -2,6 +2,8 @@
 
 ## Recommended Reading Order
 
+Start with `../doc.go` for the package-level overview, then:
+
 1. `../README.md`
    - repo purpose, canonical artifacts, and quick-start flow
 2. `claim.md`
@@ -13,7 +15,7 @@
    - the commenting, stanza, and readability rules used for the Go code in
      this repo
 5. `../progress.md`
-   - short current-state tracker and next main steps
+   - repo-local working log and major findings
 
 ## Core Claim
 

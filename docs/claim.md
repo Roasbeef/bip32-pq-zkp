@@ -1,5 +1,17 @@
 # Claim
 
+## Proof Statement
+
+In plain language, the proof says:
+
+> I know a BIP-32 seed and a derivation path such that, following BIP-32 child
+> key derivation and BIP-86 Taproot output-key construction, the result is this
+> specific 32-byte Taproot output key.
+
+The seed and derivation path are private witness data that never appear in the
+proof artifacts. The Taproot output key and a commitment to the derivation path
+are public claim data embedded in the proof journal.
+
 ## Canonical Verifier Artifacts
 
 The canonical verifier artifact set for this repo is:

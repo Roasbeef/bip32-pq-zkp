@@ -61,7 +61,8 @@ go test ./hostcheck -v
 ## Make Variables
 
 The top-level Makefile supports both explicit uppercase variables and the
-lowercase aliases you have been using interactively:
+lowercase aliases you have been using interactively. Lowercase aliases are
+variable aliases that map to the uppercase forms.
 
 - `PRIV_SEED_HEX` or `priv_seed`
 - `BIP32_PATH` or `bip_32_path`
@@ -255,10 +256,8 @@ The deterministic image ID above comes from that standalone-archive flow.
 
 ## Remote Proving Note
 
-The current verified lane is local proving.
-
-Boundless is worth revisiting later as a remote/offload option:
-
-- `https://github.com/boundless-xyz/boundless`
-
-But the local/private path is the current source of truth.
+The current validated lane in this repo is local proving. The host stack uses
+the normal risc0 backend selection path, so prover choice still depends on the
+surrounding risc0 environment and configuration. Remote proving is therefore
+not documented or validated here; see `claim.md` for the privacy implications
+of witness handling.
