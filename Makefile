@@ -23,6 +23,7 @@ PATH_COMMITMENT ?= $(path_commitment)
 REQUIRE_BIP86 ?= 1
 GOFMT_FILES := $(shell find . -type f -name '*.go' -not -path './host/*' -not -path './vendor/*')
 NATIVE_GO_PKGS := . ./bip32 ./cmd/bip32-pq-zkp-host ./hostcheck
+NATIVE_TEST_PKGS := . ./cmd/bip32-pq-zkp-host ./hostcheck
 
 TRUTHY_VALUES := 1 true TRUE yes YES y Y on ON
 
@@ -80,7 +81,7 @@ lint: lint-native
 
 native-check:
 	$(GO) build . ./cmd/bip32-pq-zkp-host
-	$(GO) test ./hostcheck -v
+	$(GO) test $(NATIVE_TEST_PKGS) -v
 
 bip32-platform-latest: check-tools
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(TINYGO_BIN) build -target=zkvm-platform -scheduler=none -no-debug -ldflags='-extldflags=$(PLATFORM_LIB)' -o bip32-platform-latest.elf ./guest
