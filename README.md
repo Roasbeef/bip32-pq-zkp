@@ -10,13 +10,19 @@ produced it, without ever revealing the seed.
 
 The proof relation:
 
-> **Public statement:** $(K, C)$ — Taproot output key and path commitment
->
-> **Private witness:** $(s, \mathbf{p})$ — BIP-32 seed and derivation path
+```math
+\mathcal{R} = \left\lbrace\;
+(\overbrace{K,\, C}^{\textsf{public}} ;\; \underbrace{s,\, \mathbf{p}}_{\textsf{witness}})
+\;\middle|\;
+\begin{aligned}
+  K &= \textsf{BIP86Taproot}\bigl(\textsf{BIP32Derive}(s,\, \mathbf{p})\bigr) \\
+  C &= \textsf{SHA256}\bigl(\texttt{"bip32-pq-zkp:path:v1"} \;\|\; \mathbf{p}\bigr)
+\end{aligned}
+\;\right\rbrace
+```
 
-$$K = \textsf{BIP86Taproot}(\textsf{BIP32Derive}(s, \mathbf{p}))$$
-
-$$C = \textsf{SHA256}(\texttt{"bip32-pq-zkp:path:v1"} \| \mathbf{p})$$
+where $K$ is the Taproot output key, $C$ is the path commitment, $s$ is the
+BIP-32 seed, and $\mathbf{p}$ is the derivation path.
 
 ## Background
 
