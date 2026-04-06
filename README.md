@@ -53,28 +53,25 @@ verifier UX.
 
 ```mermaid
 flowchart TD
-    subgraph "Private Witness (never revealed)"
+    subgraph witness [Private Witness - never revealed]
         Seed[BIP-32 Seed]
-        Path["Derivation Path<br/>m/86'/0'/0'/0/0"]
+        Path[Derivation Path]
     end
 
-    subgraph "Guest (inside risc0 zkVM)"
-        Seed & Path -->|stdin| Read[Read witness]
-        Read --> Derive["BIP-32 CKDpriv<br/>(HMAC-SHA512 chain)"]
-        Derive --> Taproot["BIP-86 Taproot<br/>output key tweak"]
-        Taproot --> Commit["Commit 72-byte<br/>public claim"]
+    subgraph guest [Guest - inside risc0 zkVM]
+        Seed -->|stdin| Read[Read witness]
+        Path -->|stdin| Read
+        Read --> Derive[BIP-32 CKDpriv]
+        Derive --> Taproot[BIP-86 Taproot tweak]
+        Taproot --> Commit[Commit 72-byte claim]
     end
 
-    subgraph "Public Output"
-        Commit --> Journal["Journal:<br/>version | flags |<br/>output key | path commitment"]
+    subgraph output [Public Output]
+        Commit --> Journal[Journal: key + path commitment]
         Journal --> Receipt[STARK Receipt]
         Receipt --> Verify{Verify}
-        Verify -->|"image ID match<br/>+ claim check"| OK["Ownership proved<br/>without revealing seed"]
+        Verify -->|valid| OK[Ownership proved]
     end
-
-    style Seed fill:#fff3e0,stroke:#e65100
-    style Path fill:#fff3e0,stroke:#e65100
-    style OK fill:#e8f5e9,stroke:#2e7d32
 ```
 
 ## What This Repo Contains
