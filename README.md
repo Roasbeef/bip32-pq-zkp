@@ -1,16 +1,42 @@
 # bip32-pq-zkp
 
-`bip32-pq-zkp` is the concrete demo repo for proving, inside `risc0`, that a
-public Taproot output key was derived from private BIP-32 witness material.
+`bip32-pq-zkp` is a proof-of-concept for Bitcoin's post-quantum migration
+path. If a quantum computer eventually breaks the secp256k1 key-spend path,
+a soft fork could disable raw Schnorr/ECDSA spends and require a
+zero-knowledge proof of BIP-32 seed knowledge instead. This repo demonstrates
+that proof: given a Taproot output key on-chain, the owner proves, inside a
+STARK-based zkVM, that they know the BIP-32 seed and derivation path that
+produced it, without ever revealing the seed.
 
 ## Background
 
-This demo is a concrete realization of the seed-lifting idea from the
-"Protecting Quantum Procrastinators with Signature Lifting" paper. That paper
-identifies an open problem: how to prove ownership of BIP-32-derived coins
-without exposing the master secret. This repo solves that problem with a STARK
-proof (via risc0 zkVM) that runs the full BIP-32 derivation inside a
-zero-knowledge virtual machine, so the seed and path never leave the prover.
+The idea comes from Sattath and Wyborski's paper ["Protecting Quantum
+Procrastinators with Signature
+Lifting"](https://eprint.iacr.org/2023/362). Their key insight is that
+BIP-32 HD derivation passes through HMAC-SHA512, a post-quantum one-way
+function, so the seed-to-key path has structure that survives a quantum
+break of the elliptic curve. They call this **seed lifting** and show it
+can recover HD-derived coins even after the child public key leaks.
+
+Their concrete construction uses Picnic signatures, which requires
+**revealing the master secret key** to the verifier. They explicitly leave
+the harder variant, seed lifting *without* exposing the master secret,
+as an open problem.
+
+This repo solves that open problem. Instead of Picnic, we run the full
+BIP-32 derivation inside a risc0 zkVM guest and produce a STARK proof. The
+seed and derivation path are private witness data that never leave the
+prover. The STARK proof system is itself post-quantum secure (transparent,
+no trusted setup), so the entire construction holds even in a world with
+large-scale quantum computers.
+
+### Future Work
+
+The current proof binds the seed to a Taproot output key but does not bind
+the proof to a specific spending transaction. A production deployment would
+need to commit to the transaction sighash inside the proof so that the
+receipt cannot be replayed to authorize a different spend. That is the
+natural next step toward a consensus-ready migration rule.
 
 The private witness is:
 
