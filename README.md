@@ -8,13 +8,20 @@ that proof: given a Taproot output key on-chain, the owner proves, inside a
 STARK-based zkVM, that they know the BIP-32 seed and derivation path that
 produced it, without ever revealing the seed.
 
-The proof statement:
+The proof relation:
 
-```text
-∃ seed, path :
-  BIP86TaprootKey(BIP32Derive(seed, path)) = taproot_output_key
-  SHA256("bip32-pq-zkp:path:v1" ‖ path)   = path_commitment
-```
+$$
+\mathcal{R} = \left\lbrace
+\begin{array}{l}
+  (\underbrace{K, C}_{\text{public}}\ ;\ \underbrace{s, \mathbf{p}}_{\text{witness}}) :\\[6pt]
+  K = \textsf{BIP86Taproot}\!\left(\textsf{BIP32Derive}(s,\, \mathbf{p})\right) \\[4pt]
+  C = \textsf{SHA256}\!\left(\texttt{"bip32-pq-zkp:path:v1"}\ \|\ \mathbf{p}\right)
+\end{array}
+\right\rbrace
+$$
+
+where $K$ is the Taproot output key, $C$ is the path commitment, $s$ is the
+BIP-32 seed, and $\mathbf{p}$ is the derivation path.
 
 ## Background
 
