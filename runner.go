@@ -91,7 +91,7 @@ func (r *Runner) Prove(cfg ProveConfig) (*ProveReport, error) {
 	result, err := r.client.Prove(zkvmhost.ProveRequest{
 		GuestBinary: guestBinary,
 		Stdin:       stdin,
-	})
+	}, zkvmhost.WithReceiptKind(resolveReceiptKind(cfg.ReceiptKind)))
 	if err != nil {
 		return nil, fmt.Errorf("prove guest: %w", err)
 	}
@@ -145,6 +145,7 @@ func (r *Runner) Prove(cfg ProveConfig) (*ProveReport, error) {
 		ClaimOutputPath:   cfg.ClaimOutputPath,
 		JournalSize:       len(result.Journal),
 		ReceiptEncoding:   result.ReceiptEncoding,
+		ReceiptKind:       result.ReceiptKind,
 		ProverName:        result.ProverName,
 		SealBytes:         result.SealBytes,
 	}, nil
@@ -233,6 +234,7 @@ func (r *Runner) Verify(cfg VerifyConfig) (*VerifyReport, error) {
 		ReceiptInputPath: cfg.ReceiptInputPath,
 		JournalSize:      len(result.Journal),
 		ReceiptEncoding:  result.ReceiptEncoding,
+		ReceiptKind:      result.ReceiptKind,
 		SealBytes:        result.SealBytes,
 	}, nil
 }
@@ -269,4 +271,12 @@ func (e VerifyExpectations) hasAny() bool {
 		e.PathCommitmentHex != "" ||
 		e.Path != "" ||
 		e.RequireBIP86 != nil
+}
+
+func resolveReceiptKind(kind zkvmhost.ReceiptKind) zkvmhost.ReceiptKind {
+	if kind == "" {
+		return zkvmhost.ReceiptKindComposite
+	}
+
+	return kind
 }

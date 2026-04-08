@@ -1,6 +1,6 @@
 package bip32pqzkp
 
-import zkvmhost "github.com/roasbeef/go-zkvm/host"
+import host "github.com/roasbeef/go-zkvm/host"
 
 // DefaultGuestPath is the packaged guest binary path used by the demo commands
 // when the caller does not override it explicitly.
@@ -53,7 +53,7 @@ var defaultBIP32Path = []uint32{
 // Runner owns the demo-specific host flow on top of the reusable go-zkvm host
 // package.
 type Runner struct {
-	client *zkvmhost.Client
+	client *host.Client
 }
 
 // WitnessConfig describes the private witness material fed into the guest.
@@ -88,6 +88,9 @@ type ProveConfig struct {
 
 	// Witness carries the private input to feed into guest stdin.
 	Witness WitnessConfig
+
+	// ReceiptKind selects the prove-time receipt compression level.
+	ReceiptKind host.ReceiptKind
 
 	// ReceiptOutputPath is where the serialized receipt should be written.
 	ReceiptOutputPath string
@@ -240,6 +243,10 @@ type ProveReport struct {
 	// ReceiptEncoding names the serialized receipt encoding.
 	ReceiptEncoding string
 
+	// ReceiptKind identifies the concrete receipt representation
+	// returned by the prover.
+	ReceiptKind host.ReceiptKind
+
 	// ProverName identifies the selected proving backend.
 	ProverName string
 
@@ -272,6 +279,10 @@ type VerifyReport struct {
 
 	// ReceiptEncoding names the serialized receipt encoding.
 	ReceiptEncoding string
+
+	// ReceiptKind identifies the concrete receipt representation
+	// that was verified.
+	ReceiptKind host.ReceiptKind
 
 	// SealBytes is the proof seal size in bytes.
 	SealBytes uint64
