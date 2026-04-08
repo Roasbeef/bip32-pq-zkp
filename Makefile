@@ -21,6 +21,7 @@ BIP32_PATH ?= $(bip_32_path)
 PUBKEY ?= $(pubkey)
 PATH_COMMITMENT ?= $(path_commitment)
 REQUIRE_BIP86 ?= 1
+RECEIPT_KIND ?= $(if $(strip $(receipt_kind)),$(receipt_kind),composite)
 GOFMT_FILES := $(shell find . -type f -name '*.go' -not -path './host/*' -not -path './vendor/*')
 NATIVE_GO_PKGS := . ./bip32 ./cmd/bip32-pq-zkp-host ./hostcheck
 NATIVE_TEST_PKGS := . ./cmd/bip32-pq-zkp-host ./hostcheck
@@ -92,7 +93,7 @@ execute: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute --guest ./bip32-platform-latest.bin $(call witness_args)
 
 prove: host-ffi bip32-platform-latest
-	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove --guest ./bip32-platform-latest.bin $(call witness_args) --receipt-out ./$(RECEIPT) --claim-out ./$(CLAIM)
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove --guest ./bip32-platform-latest.bin $(call witness_args) --receipt-kind $(RECEIPT_KIND) --receipt-out ./$(RECEIPT) --claim-out ./$(CLAIM)
 
 verify: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify --guest ./bip32-platform-latest.bin --receipt-in ./$(RECEIPT) $(if $(strip $(CLAIM)),--claim-in ./$(CLAIM),) $(call verify_args)
