@@ -69,6 +69,7 @@ variable aliases that map to the uppercase forms.
 - `PUBKEY` or `pubkey`
 - `PATH_COMMITMENT` or `path_commitment`
 - `REQUIRE_BIP86`
+- `RECEIPT_KIND` or `receipt_kind`
 - `RECEIPT`
 - `CLAIM`
 
@@ -77,7 +78,8 @@ Variable roles:
 - prove/execute witness inputs:
   - `PRIV_SEED_HEX`
   - `BIP32_PATH`
-  - `REQUIRE_BIP86`
+- `REQUIRE_BIP86`
+- `RECEIPT_KIND`
 - verify-time expectations:
   - `CLAIM`
   - `PUBKEY`
@@ -107,6 +109,7 @@ Default behavior:
   prior `make prove`
 - bare `make execute`, `make prove`, and `make verify` all default to
   `require_bip86=true`
+- bare `make prove` defaults to `RECEIPT_KIND=composite`
 - if you set `PRIV_SEED_HEX`, you should also set `BIP32_PATH`
 
 Canonical verifier path:
@@ -151,6 +154,12 @@ Built-in test vector:
 
 ```bash
 make prove GO_GOROOT=/path/to/go1.24.4
+```
+
+Built-in test vector with a recursively compressed receipt:
+
+```bash
+make prove GO_GOROOT=/path/to/go1.24.4 RECEIPT_KIND=succinct
 ```
 
 Explicit private witness:
@@ -203,6 +212,8 @@ Policy note:
 - the demo keeps a single guest image for both modes
 - `require_bip86` is carried as a verifier-visible public claim flag
 - opting out changes the public claim policy bit, not the host/image model
+- `RECEIPT_KIND` changes only the receipt representation, not the public claim
+  semantics
 
 Compatibility notes for verifiers:
 
@@ -232,16 +243,19 @@ Current built-in vector result:
 - journal size:
   - `72` bytes
 - latest measured proof seal size:
-  - `1797880` bytes
+  - composite: `1797880` bytes
+  - succinct: `222668` bytes
 - current deterministic image ID:
-  - `b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23`
+  - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
 - measured release prove times on this Mac:
-  - clean-room published-repos prove run: `54.28s`
-  - split `make prove` with explicit `PRIV_SEED_HEX` / `BIP32_PATH`: `54.76s`
-  - deterministic standalone-archive run: `51.51s`
-  - clean-room deterministic rerun: `58.93s`
-  - earlier sibling-layout rerun: `54.88s`
-  - earlier fresh-clone run: `85.65s`
+  - composite: `52.51s`
+  - succinct: `170.93s`
+- measured release verify times on this Mac:
+  - composite: `0.15s`
+  - succinct: `0.04s`
+- measured receipt sizes on disk:
+  - composite: `1799256` bytes
+  - succinct: `223319` bytes
 
 Current image-ID status:
 

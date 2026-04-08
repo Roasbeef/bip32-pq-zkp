@@ -108,6 +108,10 @@ The current `claim.json` artifact contains:
 - `proof_seal_bytes`
 - `receipt_encoding`
 
+The receipt kind itself is intentionally not part of `claim.json` v1. Composite
+and succinct receipts carry the same public claim semantics; verifiers learn the
+concrete receipt representation from the receipt artifact they load.
+
 Field meaning:
 
 - `schema_version`
@@ -376,10 +380,11 @@ output_key = 00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6
 path_commitment = 4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b
 ```
 
-Latest measured local proof size for that vector on this Mac:
+Latest measured local proof sizes for that vector on this Mac:
 
 ```text
-1797880 bytes
+composite: 1797880 bytes
+succinct: 222668 bytes
 ```
 
 The image ID is still part of the exact built guest artifact, but the
@@ -389,7 +394,7 @@ different `risc0` checkout paths.
 Current deterministic image ID:
 
 ```text
-b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23
+8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690
 ```
 
 Current reproducibility status:

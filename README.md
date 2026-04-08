@@ -167,6 +167,13 @@ By default:
 - `make execute` and `make prove` use the built-in BIP-32 test vector
 - `make verify` uses the default artifacts from the prior `make prove`
 - the documented demo lane keeps `require_bip86=true`
+- `make prove` defaults to `RECEIPT_KIND=composite`
+
+To generate a smaller recursively compressed receipt instead:
+
+```bash
+make prove GO_GOROOT=/path/to/go1.24.4 RECEIPT_KIND=succinct
+```
 
 To use an explicit private witness instead of the built-in vector:
 
@@ -196,12 +203,22 @@ Built-in test vector result (BIP-32 test vector 1, path `m/86'/0'/0'/0/0`):
 | Taproot output key | `00324bf6fa47a8d70cb5519957dd54a02b385c0ead8e4f92f9f07f992b288ee6` |
 | Path commitment | `4c7de33d397de2c231e7c2a7f53e5b581ee3c20073ea79ee4afaab56de11f74b` |
 | Journal size | 72 bytes |
-| Proof seal size | 1,797,880 bytes |
-| Image ID | `b823d67c3ec46ce8434369dcce609fae92dd0c826ec2781ff7cccb6d91793d23` |
-| Prove time (clean-room) | 54.28s |
+| Image ID | `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690` |
+| Composite proof seal size | 1,797,880 bytes |
+| Composite receipt size on disk | 1,799,256 bytes |
+| Composite prove time | 52.51s |
+| Composite verify time | 0.15s |
+| Succinct proof seal size | 222,668 bytes |
+| Succinct receipt size on disk | 223,319 bytes |
+| Succinct prove time | 170.93s |
+| Succinct verify time | 0.04s |
 
 On Apple Silicon, the local proving lane uses Metal GPU acceleration.
 Guest compilation is normal CPU work; Metal applies to the prover only.
+
+The public claim is identical in both receipt modes. Changing `RECEIPT_KIND`
+only changes the receipt representation and proof size/time tradeoff, not the
+claim semantics or image ID.
 
 ## Policy
 
