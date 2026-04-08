@@ -15,6 +15,7 @@ import (
 	"strconv"
 
 	bip32pqzkp "github.com/roasbeef/bip32-pq-zkp"
+	zkvmhost "github.com/roasbeef/go-zkvm/host"
 )
 
 // witnessArgs holds the parsed CLI flags for the private witness input.
@@ -28,9 +29,10 @@ type witnessArgs struct {
 
 // proveArgs extends witnessArgs with the output artifact paths.
 type proveArgs struct {
-	witness    witnessArgs
-	receiptOut string
-	claimOut   string
+	witness     witnessArgs
+	receiptKind string
+	receiptOut  string
+	claimOut    string
 }
 
 // optionalBool implements flag.Value for a bool flag that distinguishes
@@ -178,6 +180,11 @@ func parseProveArgs(argv []string) (proveArgs, error) {
 		"require the path to match BIP-86 (default true)",
 	)
 	fs.StringVar(
+		&args.receiptKind, "receipt-kind",
+		string(zkvmhost.ReceiptKindComposite),
+		"proof receipt kind: composite or succinct",
+	)
+	fs.StringVar(
 		&args.receiptOut, "receipt-out", "",
 		"where to write the proof receipt",
 	)
@@ -275,6 +282,7 @@ func prove(runner *bip32pqzkp.Runner, args proveArgs) error {
 	report, err := runner.Prove(bip32pqzkp.ProveConfig{
 		GuestPath:         args.witness.guest,
 		Witness:           witnessConfigFromArgs(args.witness),
+		ReceiptKind:       zkvmhost.ReceiptKind(args.receiptKind),
 		ReceiptOutputPath: args.receiptOut,
 		ClaimOutputPath:   args.claimOut,
 	})
@@ -291,6 +299,7 @@ func prove(runner *bip32pqzkp.Runner, args proveArgs) error {
 	printWitnessSummary(args.witness.requireBIP86, report.UsingTestVector)
 
 	fmt.Printf("✓ Using prover backend: %s\n", report.ProverName)
+	fmt.Printf("✓ Receipt kind: %s\n", report.ReceiptKind)
 	printAccelerationStatus()
 
 	fmt.Println("✓ Proof generated and self-verified")
@@ -302,6 +311,7 @@ func prove(runner *bip32pqzkp.Runner, args proveArgs) error {
 
 	fmt.Println("Receipt info:")
 	fmt.Printf("  Journal size: %d bytes\n", report.JournalSize)
+	fmt.Printf("  Receipt kind: %s\n", report.ReceiptKind)
 	fmt.Printf("  Proof seal size: %d bytes\n", report.SealBytes)
 
 	return nil
@@ -332,6 +342,7 @@ func verify(runner *bip32pqzkp.Runner, args verifyArgs) error {
 
 	fmt.Println("Receipt info:")
 	fmt.Printf("  Journal size: %d bytes\n", report.JournalSize)
+	fmt.Printf("  Receipt kind: %s\n", report.ReceiptKind)
 	fmt.Printf("  Proof seal size: %d bytes\n", report.SealBytes)
 	fmt.Printf("  Receipt file: %s\n", report.ReceiptInputPath)
 	if report.ClaimInputPath != "" {

@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	zkvmhost "github.com/roasbeef/go-zkvm/host"
+)
 
 func TestParseExecuteArgsDefaultsToBIP86(t *testing.T) {
 	args, err := parseExecuteArgs(nil)
@@ -33,6 +37,12 @@ func TestParseProveArgsDefaultsToBIP86(t *testing.T) {
 	if !args.witness.requireBIP86 {
 		t.Fatal("expected prove default require-bip86=true")
 	}
+	if args.receiptKind != string(zkvmhost.ReceiptKindComposite) {
+		t.Fatalf(
+			"expected default receipt kind %q, got %q",
+			zkvmhost.ReceiptKindComposite, args.receiptKind,
+		)
+	}
 }
 
 func TestParseProveArgsAllowsBIP86OptOut(t *testing.T) {
@@ -43,6 +53,20 @@ func TestParseProveArgsAllowsBIP86OptOut(t *testing.T) {
 
 	if args.witness.requireBIP86 {
 		t.Fatal("expected prove require-bip86=false override")
+	}
+}
+
+func TestParseProveArgsAllowsSuccinctReceiptKind(t *testing.T) {
+	args, err := parseProveArgs([]string{"--receipt-kind=succinct"})
+	if err != nil {
+		t.Fatalf("parseProveArgs failed: %v", err)
+	}
+
+	if args.receiptKind != string(zkvmhost.ReceiptKindSuccinct) {
+		t.Fatalf(
+			"expected receipt kind %q, got %q",
+			zkvmhost.ReceiptKindSuccinct, args.receiptKind,
+		)
 	}
 }
 
