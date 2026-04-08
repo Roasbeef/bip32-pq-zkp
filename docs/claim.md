@@ -259,6 +259,112 @@ In that future design, `txid` and `wtxid` are still useful verifier-facing
 metadata in `claim.json`, but they are not sufficient by themselves as the core
 authorization binding.
 
+## Future Recursive Composition Sketch
+
+If the demo ever grows past a single guest into a modular proof pipeline, then
+the natural risc0 mechanism is proof composition via assumptions, not "run the
+verifier inside the guest".
+
+At a high level, that would look like:
+
+- proof A:
+  - private witness:
+    - seed
+    - derivation path
+  - public output:
+    - internal key
+    - path commitment
+- proof B:
+  - private witness:
+    - whatever additional material is needed for the tweak or spend step
+  - public output:
+    - Taproot output key
+    - optional sighash digest
+    - optional Schnorr signature
+  - assumption:
+    - proof A's claim about the derived internal key
+- proof C:
+  - public output:
+    - the final verifier-facing spend claim
+  - assumptions:
+    - proof A
+    - proof B
+
+In risc0 terms, the guest-side hooks for that are `sys_verify_integrity` and
+`sys_verify_integrity2`, which add unresolved assumptions that later recursive
+proof steps can resolve.
+
+The cleanest decomposition would probably be:
+
+- step 1:
+  - prove BIP-32 derivation from private seed/path to the internal key
+- step 2:
+  - prove BIP-86 tweak from the internal key to the Taproot output key and,
+    later, Taproot spend authorization over a specific BIP-341 sighash
+- step 3:
+  - resolve those assumptions into one final verifier-facing claim
+
+Potential benefits:
+
+- smaller individual guest programs
+- lower per-proof memory pressure for each subclaim
+- better modularity and reusability of subproofs
+- a path toward one final recursively compressed receipt
+
+Important caveat:
+
+- this does not mean the first composed version will automatically be smaller
+  or faster than the current single-guest proof
+- for a claim as small as the current BIP-32 to BIP-86 demo, recursive
+  composition would likely increase total proving work at first
+- the size benefit only really appears once the system is actually resolving
+  and recursively compressing multiple assumptions into a final receipt, or
+  when the modularity/reuse value outweighs the recursion overhead
+
+So recursion is a plausible future architecture if we split the demo into
+multiple claims, but it is not the obvious next optimization for the current
+one-shot proof.
+
+There is one setting where composition becomes much more compelling: proving a
+whole set of derivation claims and publishing one final aggregated receipt.
+
+That would look like:
+
+- leaf proof `i`:
+  - private witness:
+    - `seed_i`
+    - `path_i`
+  - public output:
+    - `taproot_output_key_i`
+    - optional `path_commitment_i`
+- aggregation proof:
+  - assumptions:
+    - the set of leaf proofs
+  - public output:
+    - either the full list of output keys
+    - or a Merkle root / commitment to the set of claims
+    - or a higher-level statement such as "these `N` outputs were all derived
+      correctly"
+
+In that model, each leaf proof keeps its own private witness local. The final
+aggregation proof only needs the public outputs or commitments from those leaf
+claims. That means the seed and path material can remain secret even while the
+system publishes a single verifier-facing receipt for the whole set.
+
+This is the more realistic place where recursive composition may help with size:
+
+- not by making one small proof smaller
+- but by replacing `N` separate published receipts with one final aggregated
+  receipt
+- and by letting the final public claim expose either the full set of `N`
+  derived keys or just a commitment to that set
+
+The tradeoff remains the same:
+
+- total proving work usually increases
+- the verifier-facing artifact size and verification UX can improve
+- the best fit is many related claims, not one already-small derivation proof
+
 ## Current Known-Good Vector
 
 For the built-in test vector, the current public claim material is:
