@@ -43,12 +43,13 @@ var (
 // DeriveXOnly derives the BIP-32 child private key at the given path and
 // returns the corresponding x-only public key bytes.
 func DeriveXOnly(seed []byte, path []uint32) ([]byte, error) {
-	privKey, err := DerivePrivateKey(seed, path)
+	xpriv, err := DeriveExtendedPrivateKey(seed, path)
 	if err != nil {
 		return nil, err
 	}
 
-	return serializeXOnly(privKey.PubKey()), nil
+	xOnly := xpriv.SerializeXOnlyPubKey()
+	return xOnly[:], nil
 }
 
 // DerivePrivateKey derives the BIP-32 child private key at the given path.
@@ -60,33 +61,12 @@ func DeriveXOnly(seed []byte, path []uint32) ([]byte, error) {
 //     key (left 32 bytes) and master chain code (right 32 bytes).
 //  2. For each index in the path, apply CKDpriv to derive the child key.
 func DerivePrivateKey(seed []byte, path []uint32) (*secp.PrivateKey, error) {
-	if len(seed) < minSeedBytes || len(seed) > maxSeedBytes {
-		return nil, ErrInvalidSeedLength
+	xpriv, err := DeriveExtendedPrivateKey(seed, path)
+	if err != nil {
+		return nil, err
 	}
 
-	// BIP-32 master key generation: HMAC-SHA512 keyed by "Bitcoin seed".
-	// The left 32 bytes become the master private key scalar, the right
-	// 32 bytes become the master chain code.
-	sum := hmacSHA512(masterKeySalt, seed)
-
-	var key secp.ModNScalar
-	if overflow := key.SetByteSlice(sum[:32]); overflow || key.IsZero() {
-		return nil, ErrInvalidMasterKey
-	}
-
-	var chainCode [32]byte
-	copy(chainCode[:], sum[32:])
-
-	// Walk the derivation path, applying CKDpriv at each step.
-	for _, index := range path {
-		var err error
-		key, chainCode, err = deriveChild(&key, chainCode, index)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return secp.NewPrivateKey(&key), nil
+	return xpriv.PrivateKey(), nil
 }
 
 // deriveChild implements BIP-32 CKDpriv: it derives one child key from a
