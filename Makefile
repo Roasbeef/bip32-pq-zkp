@@ -16,10 +16,20 @@ HOST_CMD := ./cmd/bip32-pq-zkp-host
 ARTIFACT_DIR ?= ./artifacts
 RECEIPT ?= $(ARTIFACT_DIR)/bip32-test-vector.receipt
 CLAIM ?= $(ARTIFACT_DIR)/bip32-test-vector.claim.json
+HARDENED_XPUB_RECEIPT ?= $(ARTIFACT_DIR)/hardened-xpub-test-vector.receipt
+HARDENED_XPUB_CLAIM ?= $(ARTIFACT_DIR)/hardened-xpub-test-vector.claim.json
+HARDENED_XPRIV_RECEIPT ?= $(ARTIFACT_DIR)/hardened-xpriv-test-vector.receipt
+HARDENED_XPRIV_CLAIM ?= $(ARTIFACT_DIR)/hardened-xpriv-test-vector.claim.json
 PRIV_SEED_HEX ?= $(priv_seed)
 BIP32_PATH ?= $(bip_32_path)
 PUBKEY ?= $(pubkey)
 PATH_COMMITMENT ?= $(path_commitment)
+PARENT_XPRIV_HEX ?= $(parent_xpriv)
+PARENT_CHAIN_CODE_HEX ?= $(parent_chain_code)
+HARDENED_PATH ?= $(hardened_path)
+EXPECTED_COMPRESSED_PUBKEY ?= $(expected_compressed_pubkey)
+EXPECTED_CHILD_PRIVATE_KEY ?= $(expected_child_private_key)
+EXPECTED_CHAIN_CODE ?= $(expected_chain_code)
 REQUIRE_BIP86 ?= 1
 RECEIPT_KIND ?= $(if $(strip $(receipt_kind)),$(receipt_kind),composite)
 GOFMT_FILES := $(shell find . -type f -name '*.go' -not -path './host/*' -not -path './vendor/*')
@@ -34,7 +44,7 @@ define print
 	@echo $(GREEN)$1$(NC)
 endef
 
-.PHONY: all check-tools hostcheck platform-standalone host-ffi bip32-platform-latest execute prove verify fmt fmt-check tidy tidy-check local-custom-gcl install-custom-gcl build-native-linter lint-native lint native-check clean
+.PHONY: all check-tools hostcheck platform-standalone host-ffi bip32-platform-latest hardened-xpub-platform-latest hardened-xpriv-platform-latest execute prove verify execute-hardened-xpub prove-hardened-xpub verify-hardened-xpub execute-hardened-xpriv prove-hardened-xpriv verify-hardened-xpriv fmt fmt-check tidy tidy-check local-custom-gcl install-custom-gcl build-native-linter lint-native lint native-check clean
 
 all: bip32-platform-latest
 
@@ -89,6 +99,16 @@ bip32-platform-latest: check-tools
 	$(CONVERT) bip32-platform-latest.elf $(KERNEL) bip32-platform-latest.bin
 	@echo "Built bip32-platform-latest.bin"
 
+hardened-xpub-platform-latest: check-tools
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(TINYGO_BIN) build -target=zkvm-platform -scheduler=none -no-debug -ldflags='-extldflags=$(PLATFORM_LIB)' -o hardened-xpub-platform-latest.elf ./guest_hardened_xpub
+	$(CONVERT) hardened-xpub-platform-latest.elf $(KERNEL) hardened-xpub-platform-latest.bin
+	@echo "Built hardened-xpub-platform-latest.bin"
+
+hardened-xpriv-platform-latest: check-tools
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(TINYGO_BIN) build -target=zkvm-platform -scheduler=none -no-debug -ldflags='-extldflags=$(PLATFORM_LIB)' -o hardened-xpriv-platform-latest.elf ./guest_hardened_xpriv
+	$(CONVERT) hardened-xpriv-platform-latest.elf $(KERNEL) hardened-xpriv-platform-latest.bin
+	@echo "Built hardened-xpriv-platform-latest.bin"
+
 execute: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute --guest ./bip32-platform-latest.bin $(call witness_args)
 
@@ -97,6 +117,24 @@ prove: host-ffi bip32-platform-latest
 
 verify: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify --guest ./bip32-platform-latest.bin --receipt-in ./$(RECEIPT) $(if $(strip $(CLAIM)),--claim-in ./$(CLAIM),) $(call verify_args)
+
+execute-hardened-xpub: host-ffi hardened-xpub-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-hardened-xpub --guest ./hardened-xpub-platform-latest.bin $(call hardened_xpub_witness_args)
+
+prove-hardened-xpub: host-ffi hardened-xpub-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove-hardened-xpub --guest ./hardened-xpub-platform-latest.bin $(call hardened_xpub_witness_args) --receipt-kind $(RECEIPT_KIND) --receipt-out ./$(HARDENED_XPUB_RECEIPT) --claim-out ./$(HARDENED_XPUB_CLAIM)
+
+verify-hardened-xpub: host-ffi hardened-xpub-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify-hardened-xpub --guest ./hardened-xpub-platform-latest.bin --receipt-in ./$(HARDENED_XPUB_RECEIPT) $(if $(strip $(HARDENED_XPUB_CLAIM)),--claim-in ./$(HARDENED_XPUB_CLAIM),) $(call hardened_xpub_verify_args)
+
+execute-hardened-xpriv: host-ffi hardened-xpriv-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-hardened-xpriv --guest ./hardened-xpriv-platform-latest.bin $(call hardened_xpriv_witness_args)
+
+prove-hardened-xpriv: host-ffi hardened-xpriv-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove-hardened-xpriv --guest ./hardened-xpriv-platform-latest.bin $(call hardened_xpriv_witness_args) --receipt-kind $(RECEIPT_KIND) --receipt-out ./$(HARDENED_XPRIV_RECEIPT) --claim-out ./$(HARDENED_XPRIV_CLAIM)
+
+verify-hardened-xpriv: host-ffi hardened-xpriv-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify-hardened-xpriv --guest ./hardened-xpriv-platform-latest.bin --receipt-in ./$(HARDENED_XPRIV_RECEIPT) $(if $(strip $(HARDENED_XPRIV_CLAIM)),--claim-in ./$(HARDENED_XPRIV_CLAIM),) $(call hardened_xpriv_verify_args)
 
 clean:
 	rm -f *.elf *.bin
@@ -109,4 +147,20 @@ endef
 
 define verify_args
 $(if $(strip $(PUBKEY)),--expected-pubkey $(PUBKEY),) $(if $(strip $(PATH_COMMITMENT)),--expected-path-commitment $(PATH_COMMITMENT),) $(if $(strip $(BIP32_PATH)),--expected-path "$(BIP32_PATH)",) --require-bip86 $(if $(filter $(REQUIRE_BIP86),$(TRUTHY_VALUES)),true,false)
+endef
+
+define hardened_xpub_witness_args
+$(if $(strip $(PARENT_XPRIV_HEX)),--parent-xpriv-hex $(PARENT_XPRIV_HEX) --parent-chain-code-hex $(PARENT_CHAIN_CODE_HEX) --path "$(HARDENED_PATH)",--use-test-vector)
+endef
+
+define hardened_xpub_verify_args
+$(if $(strip $(EXPECTED_COMPRESSED_PUBKEY)),--expected-compressed-pubkey $(EXPECTED_COMPRESSED_PUBKEY),) $(if $(strip $(EXPECTED_CHAIN_CODE)),--expected-chain-code $(EXPECTED_CHAIN_CODE),)
+endef
+
+define hardened_xpriv_witness_args
+$(if $(strip $(PARENT_XPRIV_HEX)),--parent-xpriv-hex $(PARENT_XPRIV_HEX) --parent-chain-code-hex $(PARENT_CHAIN_CODE_HEX) --path "$(HARDENED_PATH)",--use-test-vector)
+endef
+
+define hardened_xpriv_verify_args
+$(if $(strip $(EXPECTED_CHILD_PRIVATE_KEY)),--expected-child-private-key $(EXPECTED_CHILD_PRIVATE_KEY),) $(if $(strip $(EXPECTED_CHAIN_CODE)),--expected-chain-code $(EXPECTED_CHAIN_CODE),)
 endef
