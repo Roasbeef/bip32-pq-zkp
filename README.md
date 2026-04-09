@@ -100,14 +100,21 @@ supported for callers who want per-field verification without a claim file.
 This repo is the demo layer on top of the reusable sibling `go-zkvm` host
 and guest plumbing. It contains:
 
-- minimal BIP-32 derivation helpers (`bip32/`)
+- minimal BIP-32 derivation helpers and `ExtendedPrivateKey` type (`bip32/`)
 - BIP-86 Taproot output-key derivation helpers
-- the TinyGo guest that produces the proof claim (`guest/`)
-- a demo-specific Go host CLI for `execute`, `prove`, and `verify`
+- three TinyGo guest programs:
+  - full Taproot lane (`guest/`): seed + full path to Taproot output key
+  - hardened-xpub lane (`guest_hardened_xpub/`): parent xpriv to child
+    compressed pubkey
+  - hardened-xpriv lane (`guest_hardened_xpriv/`): single hardened CKDpriv
+    step, no EC point multiplication
+- a demo-specific Go host CLI with nine subcommands for all three lanes
   (`cmd/bip32-pq-zkp-host/`)
-- host-side reference tests against `btcd/txscript` (`hostcheck/`)
+- host-side reference tests against `btcd/txscript` and `btcd/hdkeychain`
+  (`hostcheck/`)
 - the root-level `bip32pqzkp` Go package providing `Runner`,
-  `BuildWitnessStdin`, `DecodePublicClaim`, and claim-file helpers
+  `BuildWitnessStdin`, `DecodePublicClaim`, and claim-file helpers for all
+  three lanes
 - claim specification and runbook documentation (`docs/`)
 
 The reusable guest packaging, proving, and verification boundary lives in
@@ -206,12 +213,13 @@ Built-in test vector result (BIP-32 test vector 1, path `m/86'/0'/0'/0/0`):
 | Image ID | `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690` |
 | Composite proof seal size | 1,797,880 bytes |
 | Composite receipt size on disk | 1,799,256 bytes |
-| Composite prove time | 52.51s |
-| Composite verify time | 0.15s |
+| Composite prove time | 49.32s |
+| Composite verify time | 0.10s |
 | Succinct proof seal size | 222,668 bytes |
 | Succinct receipt size on disk | 223,319 bytes |
-| Succinct prove time | 170.93s |
-| Succinct verify time | 0.04s |
+| Succinct prove time | 64.30s |
+| Succinct verify time | 0.03s |
+| Composite peak RSS | 11.91 GB |
 
 On Apple Silicon, the local proving lane uses Metal GPU acceleration.
 Guest compilation is normal CPU work; Metal applies to the prover only.
@@ -220,12 +228,42 @@ The public claim is identical in both receipt modes. Changing `RECEIPT_KIND`
 only changes the receipt representation and proof size/time tradeoff, not the
 claim semantics or image ID.
 
+## Reduced Proof Variants
+
+In addition to the full Taproot lane, this repo includes two reduced proof
+variants that trade statement strength for dramatically lower proving cost.
+The key insight is that once the guest avoids EC point multiplication, the
+composite receipt is already close to the succinct size floor.
+
+| Lane | Statement | Composite seal | Prove time | Succinct seal | Prove time |
+|------|-----------|---------------|------------|---------------|------------|
+| Full Taproot | seed + path to Taproot output key | 1,797,880 B | 49.32s | 222,668 B | 64.30s |
+| Hardened xpub | parent xpriv to child compressed pubkey | 513,680 B | 14.63s | 222,668 B | 17.29s |
+| Hardened xpriv | single hardened CKDpriv step | 234,568 B | 1.98s | 222,668 B | 2.84s |
+
+The hardened-xpriv variant is the most efficient: ~2 seconds to prove, ~235 KB
+composite receipt, and only 3.14 GB peak RAM (vs 11.9 GB for the full lane).
+It is the natural leaf proof for future batch aggregation.
+
+All three lanes share the same BIP-32 derivation core (`bip32/`) and the same
+host plumbing pattern. See `docs/reduced-variants.md` for full benchmarks,
+execute-only context, and tradeoff analysis.
+
+Quick start for the reduced variants:
+
+```bash
+make execute-hardened-xpriv GO_GOROOT=/path/to/go1.24.4
+make prove-hardened-xpriv GO_GOROOT=/path/to/go1.24.4
+make verify-hardened-xpriv GO_GOROOT=/path/to/go1.24.4
+```
+
 ## Policy
 
-The demo lane defaults to BIP-86 path enforcement, but callers can opt out
-for non-BIP-86 derivations. The design keeps a single guest image: the
-BIP-86 requirement is a verifier-visible public claim flag, not a separate
-image identity.
+The full Taproot demo lane defaults to BIP-86 path enforcement, but callers
+can opt out for non-BIP-86 derivations. The design keeps a single guest
+image per lane: the BIP-86 requirement is a verifier-visible public claim
+flag, not a separate image identity. The reduced variants use separate guest
+images with their own image IDs.
 
 ## Future Work
 
@@ -241,3 +279,4 @@ natural next step toward a consensus-ready migration rule. See
 - `docs/README.md`: reading order and topic map
 - `docs/claim.md`: claim specification and v2 sketch
 - `docs/running.md`: build, execute, prove, and verify commands
+- `docs/reduced-variants.md`: side-by-side comparison of all three proof lanes
