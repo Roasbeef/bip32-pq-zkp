@@ -92,7 +92,52 @@ SHA256("bip32-pq-zkp:path:v1" || len(path)_le32 || each_component_le32)
 The current design keeps both private. The verifier only learns the Taproot
 output key, the path commitment, and the policy/version fields.
 
-## claim.json Schema
+## Reduced Variant Claims
+
+In addition to the full Taproot claim, this repo supports two reduced claim
+types for the hardened-only proof variants.
+
+### Hardened xpub claim (73 bytes)
+
+The hardened-xpub guest proves: "I know a parent BIP-32 xpriv and chain code
+such that, after one or more hardened child derivation steps, the resulting
+child xpub and chain code are exactly these public bytes."
+
+Journal layout:
+
+```text
+[0:4]   claim_version    (uint32 LE, currently 1)
+[4:8]   claim_flags      (uint32 LE, currently 0)
+[8:41]  compressed_pubkey (33-byte SEC compressed public key)
+[41:73] chain_code        (32-byte BIP-32 child chain code)
+```
+
+Private witness: parent xpriv scalar (32 bytes), parent chain code
+(32 bytes), hardened path (variable length `uint32` array).
+
+### Hardened xpriv claim (72 bytes)
+
+The hardened-xpriv guest proves: "I know a parent BIP-32 xpriv and chain
+code such that, after exactly one hardened child derivation step, the
+resulting child xpriv and chain code are exactly these bytes."
+
+Journal layout:
+
+```text
+[0:4]   claim_version    (uint32 LE, currently 1)
+[4:8]   claim_flags      (uint32 LE, currently 0)
+[8:40]  child_private_key (32-byte secp256k1 secret scalar)
+[40:72] chain_code        (32-byte BIP-32 child chain code)
+```
+
+Private witness: parent xpriv scalar (32 bytes), parent chain code
+(32 bytes), single hardened child index (`uint32`).
+
+This is the most efficient variant (~2s prove time) because the guest
+performs only HMAC-SHA512 and scalar addition, avoiding EC point
+multiplication entirely.
+
+## claim.json Schema (Full Taproot)
 
 The current `claim.json` artifact contains:
 
