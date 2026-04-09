@@ -1,3 +1,7 @@
+// hardened_xpub.go implements the CLI flag parsing, execution, proving,
+// verification, and output formatting for the reduced hardened-xpub
+// subcommands. Mirrors hardened_xpriv.go but uses compressed pubkey
+// fields instead of private key fields in the claim output.
 package main
 
 import (
@@ -9,6 +13,8 @@ import (
 	zkvmhost "github.com/roasbeef/go-zkvm/host"
 )
 
+// hardenedXPubWitnessArgs holds the parsed CLI flags for the private
+// witness input to the hardened-xpub guest.
 type hardenedXPubWitnessArgs struct {
 	guest              string
 	parentXPrivHex     string

@@ -1,3 +1,7 @@
+// hardened_xpriv.go implements the CLI flag parsing, execution, proving,
+// verification, and output formatting for the reduced hardened-xpriv
+// subcommands. It follows the same pattern as the full Taproot lane in
+// main.go but with xpriv-specific flag names and claim output fields.
 package main
 
 import (
@@ -9,6 +13,8 @@ import (
 	zkvmhost "github.com/roasbeef/go-zkvm/host"
 )
 
+// hardenedXPrivWitnessArgs holds the parsed CLI flags for the private
+// witness input to the hardened-xpriv guest.
 type hardenedXPrivWitnessArgs struct {
 	guest              string
 	parentXPrivHex     string

@@ -1,3 +1,9 @@
+// extended_key_test.go cross-checks the bip32.ExtendedPrivateKey derivation
+// helpers and both reduced claim types against the btcsuite/hdkeychain
+// reference implementation. This ensures the minimal derivation code used
+// inside the zkVM guest produces semantically identical results to a
+// full-featured BIP-32 library, which is critical since the guest runs in a
+// deterministic environment with no way to inspect intermediate state.
 package hostcheck
 
 import (
