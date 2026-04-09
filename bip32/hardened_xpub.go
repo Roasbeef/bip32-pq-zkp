@@ -1,3 +1,14 @@
+// hardened_xpub.go implements the claim type for the reduced hardened-xpub
+// proof lane. This is the middle-ground variant: it proves a hardened-only
+// derivation from a parent xpriv to a child compressed public key. Unlike
+// the xpriv variant, the guest must perform at least one EC point
+// multiplication (to compute the public key from the derived private key),
+// which is why its proving cost (~14s) sits between the xpriv (~2s) and
+// full Taproot (~49s) lanes.
+//
+// The advantage over the xpriv variant is that the public claim reveals
+// only the compressed child public key and chain code, not the child
+// private key. This is a stronger privacy property for the claim output.
 package bip32
 
 import (
@@ -12,7 +23,8 @@ const (
 	HardenedXPubClaimVersion = 1
 
 	// HardenedXPubClaimSize is the serialized journal size of a hardened
-	// xpub claim.
+	// xpub claim: 4 (version) + 4 (flags) + 33 (compressed pubkey) +
+	// 32 (chain code) = 73 bytes.
 	HardenedXPubClaimSize = 73
 )
 

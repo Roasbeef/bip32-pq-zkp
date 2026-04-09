@@ -1,3 +1,15 @@
+// hardened_xpriv.go implements the claim type for the reduced hardened-xpriv
+// proof lane. This is the fastest variant (~2s prove time) because the guest
+// performs only a single hardened CKDpriv step: HMAC-SHA512 keyed by the
+// parent chain code, followed by scalar addition modulo the secp256k1 group
+// order. No elliptic curve point multiplication is needed inside the guest,
+// which dramatically reduces the zkVM execution trace and the resulting
+// proof size.
+//
+// The tradeoff is that the public claim reveals the child private key and
+// chain code, making this the weakest statement of the three lanes. It is
+// still useful as a leaf proof for future aggregation schemes where the
+// child xpriv would be consumed by a subsequent proof step.
 package bip32
 
 import (
@@ -12,7 +24,8 @@ const (
 	HardenedXPrivClaimVersion = 1
 
 	// HardenedXPrivClaimSize is the serialized journal size of a hardened
-	// xpriv claim.
+	// xpriv claim: 4 (version) + 4 (flags) + 32 (child key) + 32 (chain
+	// code) = 72 bytes.
 	HardenedXPrivClaimSize = 72
 )
 
@@ -31,7 +44,9 @@ var (
 )
 
 // HardenedXPrivClaim commits to the child xpriv material derived from a
-// private parent xpriv via exactly one hardened child step.
+// private parent xpriv via exactly one hardened child step. The journal
+// layout is little-endian throughout for consistency with the risc0 rv32im
+// guest ABI.
 type HardenedXPrivClaim struct {
 	// Version identifies the serialized claim format.
 	Version uint32
@@ -109,7 +124,9 @@ func (claim HardenedXPrivClaim) ChainCodeHex() string {
 }
 
 // SingleHardenedChild validates that the supplied path consists of exactly
-// one hardened child index and returns that index.
+// one hardened child index and returns that index. The hardened-xpriv guest
+// requires exactly one step because its witness format uses a single
+// uint32 index rather than a variable-length path array.
 func SingleHardenedChild(path []uint32) (uint32, error) {
 	switch {
 	case len(path) != 1:
