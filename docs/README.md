@@ -11,10 +11,13 @@ Start with `../doc.go` for the package-level overview, then:
 3. `running.md`
    - build, execute, prove, and verify the current demo through the Go host
      CLI
-4. `code-format.md`
+4. `reduced-variants.md`
+   - side-by-side comparison of the full Taproot proof and the two reduced
+     hardened-derivation variants
+5. `code-format.md`
    - the commenting, stanza, and readability rules used for the Go code in
      this repo
-5. `../progress.md`
+6. `../progress.md`
    - repo-local working log and major findings
 
 ## Core Claim
