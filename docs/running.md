@@ -1,9 +1,15 @@
 # Running bip32-pq-zkp
 
-This repo now carries its own demo-specific Go host command in
+This repo carries its own demo-specific Go host command in
 `cmd/bip32-pq-zkp-host/`. The sibling `go-zkvm` repo still provides the guest
 packaging and proving engine boundary, but `bip32-pq-zkp` owns the
-demo-specific `execute`, `prove`, and `verify` UX.
+demo-specific UX across all three proof lanes:
+
+- Full Taproot: `execute`, `prove`, `verify`
+- Hardened xpub: `execute-hardened-xpub`, `prove-hardened-xpub`,
+  `verify-hardened-xpub`
+- Hardened xpriv: `execute-hardened-xpriv`, `prove-hardened-xpriv`,
+  `verify-hardened-xpriv`
 
 ## Expected Sibling Layout
 
@@ -248,14 +254,17 @@ Current built-in vector result:
 - current deterministic image ID:
   - `8a6a2c27dd54d8fa0f99a332b57cb105f88472d977c84bfac077cbe70907a690`
 - measured release prove times on this Mac:
-  - composite: `52.51s`
-  - succinct: `170.93s`
+  - composite: `49.32s`
+  - succinct: `64.30s`
 - measured release verify times on this Mac:
-  - composite: `0.15s`
-  - succinct: `0.04s`
+  - composite: `0.10s`
+  - succinct: `0.03s`
 - measured receipt sizes on disk:
   - composite: `1799256` bytes
   - succinct: `223319` bytes
+- measured peak RSS:
+  - composite: `11.91 GB`
+  - succinct: `11.93 GB`
 
 Current image-ID status:
 
