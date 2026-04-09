@@ -6,6 +6,15 @@ import host "github.com/roasbeef/go-zkvm/host"
 // when the caller does not override it explicitly.
 const DefaultGuestPath = "./bip32-platform-latest.bin"
 
+// DefaultHardenedXPubGuestPath is the packaged guest binary path used by the
+// hardened-xpub demo commands when the caller does not override it explicitly.
+const DefaultHardenedXPubGuestPath = "./hardened-xpub-platform-latest.bin"
+
+// DefaultHardenedXPrivGuestPath is the packaged guest binary path used by the
+// hardened-xpriv demo commands when the caller does not override it
+// explicitly.
+const DefaultHardenedXPrivGuestPath = "./hardened-xpriv-platform-latest.bin"
+
 const (
 	// bip32HardenedKeyStart mirrors bip32.HardenedKeyStart for use in
 	// host-side witness assembly and validation.
@@ -48,6 +57,20 @@ var defaultBIP32Path = []uint32{
 	bip32HardenedKeyStart,
 	0,
 	0,
+}
+
+// defaultReducedParentPath is the built-in parent xpriv used by the reduced
+// proof variants: m/86'/0'.
+var defaultReducedParentPath = []uint32{
+	bip86Purpose,
+	bip32HardenedKeyStart,
+}
+
+// defaultReducedChildPath is the hardened child path used by the reduced
+// proof variants. Combined with defaultReducedParentPath, it yields the
+// account-level child at m/86'/0'/0'.
+var defaultReducedChildPath = []uint32{
+	bip32HardenedKeyStart,
 }
 
 // Runner owns the demo-specific host flow on top of the reusable go-zkvm host

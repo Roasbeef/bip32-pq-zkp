@@ -31,7 +31,9 @@ func (r *Runner) Close() error {
 // Execute runs the guest without generating a proof and returns the decoded
 // public claim plus session metadata.
 func (r *Runner) Execute(cfg ExecuteConfig) (*ExecuteReport, error) {
-	guestPath, guestBinary, imageID, err := r.loadGuest(cfg.GuestPath)
+	guestPath, guestBinary, imageID, err := r.loadGuestWithDefault(
+		cfg.GuestPath, DefaultGuestPath,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +80,9 @@ func (r *Runner) Prove(cfg ProveConfig) (*ProveReport, error) {
 		return nil, errors.New("--claim-out is required")
 	}
 
-	guestPath, guestBinary, imageID, err := r.loadGuest(cfg.GuestPath)
+	guestPath, guestBinary, imageID, err := r.loadGuestWithDefault(
+		cfg.GuestPath, DefaultGuestPath,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +163,9 @@ func (r *Runner) Verify(cfg VerifyConfig) (*VerifyReport, error) {
 		return nil, errors.New("--receipt-in is required")
 	}
 
-	guestPath, guestBinary, imageID, err := r.loadGuest(cfg.GuestPath)
+	guestPath, guestBinary, imageID, err := r.loadGuestWithDefault(
+		cfg.GuestPath, DefaultGuestPath,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -242,10 +248,13 @@ func (r *Runner) Verify(cfg VerifyConfig) (*VerifyReport, error) {
 // loadGuest reads the packaged guest binary from disk and computes its image
 // ID. If the caller did not provide an explicit path, it falls back to
 // DefaultGuestPath.
-func (r *Runner) loadGuest(path string) (string, []byte, string, error) {
+func (r *Runner) loadGuestWithDefault(
+	path string, defaultPath string,
+) (string, []byte, string, error) {
+
 	guestPath := path
 	if guestPath == "" {
-		guestPath = DefaultGuestPath
+		guestPath = defaultPath
 	}
 
 	guestBinary, err := zkvmhost.ReadGuestFile(guestPath)

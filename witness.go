@@ -265,3 +265,22 @@ func decodeHexArray32(label, value string) ([32]byte, error) {
 
 	return out, nil
 }
+
+// decodeHexArray33 decodes a hex string into a fixed 33-byte array, returning
+// an error if the decoded length is not exactly 33 bytes.
+func decodeHexArray33(label, value string) ([33]byte, error) {
+	bytes, err := decodeHex(value)
+	if err != nil {
+		return [33]byte{}, fmt.Errorf("decode %s: %w", label, err)
+	}
+	if len(bytes) != 33 {
+		return [33]byte{}, fmt.Errorf(
+			"%s must be 33 bytes, got %d", label, len(bytes),
+		)
+	}
+
+	var out [33]byte
+	copy(out[:], bytes)
+
+	return out, nil
+}
