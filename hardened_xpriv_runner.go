@@ -1,3 +1,10 @@
+// hardened_xpriv_runner.go implements Execute, Prove, and Verify for the
+// reduced hardened-xpriv proof lane. The structure mirrors runner.go (the
+// full Taproot lane) with the same three-phase pattern: load guest binary
+// and compute image ID, build/resolve the private witness, then call the
+// go-zkvm host client for execution or proving. The prove path additionally
+// writes the receipt and claim.json artifacts and performs a claim-version
+// sanity check.
 package bip32pqzkp
 
 import (

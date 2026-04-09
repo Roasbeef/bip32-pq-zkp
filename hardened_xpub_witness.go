@@ -1,3 +1,7 @@
+// hardened_xpub_witness.go builds the private witness stdin for the reduced
+// hardened-xpub guest. The witness uses a variable-length hardened path
+// (unlike the xpriv variant which uses a single index), so the wire format
+// includes a length prefix before the path array.
 package bip32pqzkp
 
 import (
@@ -9,6 +13,8 @@ import (
 	localbip32 "github.com/roasbeef/bip32-pq-zkp/bip32"
 )
 
+// resolvedHardenedXPubWitness is the internal resolved form of the witness
+// after validating and parsing the CLI or test-vector inputs.
 type resolvedHardenedXPubWitness struct {
 	parent          localbip32.ExtendedPrivateKey
 	path            []uint32
@@ -164,6 +170,11 @@ func resolveHardenedXPubWitness(
 	}
 }
 
+// defaultReducedParentExtendedPrivateKey derives the parent xpriv used by
+// the built-in test vector for both reduced variants. It takes the same
+// seed as the full Taproot demo and derives it to m/86'/0', so the reduced
+// variants continue from there with the remaining hardened child step(s).
+// This lets all three lanes produce related output from the same seed.
 func defaultReducedParentExtendedPrivateKey() (localbip32.ExtendedPrivateKey,
 	error) {
 

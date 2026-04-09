@@ -1,3 +1,7 @@
+// hardened_xpub_types.go defines the config, report, and claim-file types
+// for the reduced hardened-xpub proof lane. The witness uses a parent xpriv
+// + chain code + hardened path, and the public claim reveals the derived
+// child compressed public key and chain code (no private key material).
 package bip32pqzkp
 
 import (
@@ -6,7 +10,8 @@ import (
 )
 
 // HardenedXPubClaim is the verifier-visible public claim committed by the
-// reduced hardened-xpub guest.
+// reduced hardened-xpub guest. It is a type alias to avoid duplicating the
+// bip32 package's claim struct at the root package level.
 type HardenedXPubClaim = localbip32.HardenedXPubClaim
 
 // HardenedXPubWitnessConfig describes the private witness material fed into

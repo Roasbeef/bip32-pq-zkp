@@ -1,3 +1,9 @@
+// hardened_xpriv_witness.go builds the private witness stdin for the
+// reduced hardened-xpriv guest. The witness is a compact 68-byte payload:
+// 32 bytes parent private key + 32 bytes parent chain code + 4 bytes
+// hardened child index. This is significantly smaller than the full Taproot
+// witness (which includes the raw seed and a variable-length path) because
+// the host pre-derives the parent xpriv outside the guest.
 package bip32pqzkp
 
 import (
@@ -9,6 +15,8 @@ import (
 	localbip32 "github.com/roasbeef/bip32-pq-zkp/bip32"
 )
 
+// resolvedHardenedXPrivWitness is the internal resolved form of the witness
+// after validating and parsing the CLI or test-vector inputs.
 type resolvedHardenedXPrivWitness struct {
 	parent          localbip32.ExtendedPrivateKey
 	index           uint32

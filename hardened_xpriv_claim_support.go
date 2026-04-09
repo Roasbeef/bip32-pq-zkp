@@ -1,3 +1,13 @@
+// hardened_xpriv_claim_support.go provides journal decoding, claim.json
+// I/O, and field-level verification helpers for the reduced hardened-xpriv
+// lane. The verification model is the same as the full Taproot lane: the
+// verifier first checks the receipt against the guest image ID, then
+// compares the verified journal output to either a stored claim.json
+// artifact or explicit field expectations.
+//
+// NOTE: Like the full Taproot lane, ProofSealBytes is excluded from the
+// semantic claim comparison because changing RECEIPT_KIND changes the seal
+// size without changing the public claim semantics.
 package bip32pqzkp
 
 import (

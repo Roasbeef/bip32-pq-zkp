@@ -1,3 +1,8 @@
+// hardened_xpriv_types.go defines the config, report, and claim-file types
+// for the reduced hardened-xpriv proof lane. The type hierarchy mirrors the
+// full Taproot lane (types.go) but with xpriv-specific fields: the witness
+// uses a parent xpriv + chain code + single hardened child index, and the
+// public claim reveals the derived child private key and chain code.
 package bip32pqzkp
 
 import (
@@ -6,7 +11,8 @@ import (
 )
 
 // HardenedXPrivClaim is the verifier-visible public claim committed by the
-// reduced hardened-xpriv guest.
+// reduced hardened-xpriv guest. It is a type alias to avoid duplicating the
+// bip32 package's claim struct at the root package level.
 type HardenedXPrivClaim = localbip32.HardenedXPrivClaim
 
 // HardenedXPrivWitnessConfig describes the private witness material fed into

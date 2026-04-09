@@ -1,3 +1,7 @@
+// hardened_xpub_claim_support.go provides journal decoding, claim.json
+// I/O, and field-level verification helpers for the reduced hardened-xpub
+// lane. Mirrors hardened_xpriv_claim_support.go but uses compressed pubkey
+// (33 bytes) instead of private key (32 bytes) in the claim fields.
 package bip32pqzkp
 
 import (

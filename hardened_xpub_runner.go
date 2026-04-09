@@ -1,3 +1,6 @@
+// hardened_xpub_runner.go implements Execute, Prove, and Verify for the
+// reduced hardened-xpub proof lane. The structure mirrors runner.go and
+// hardened_xpriv_runner.go with the same three-phase pattern.
 package bip32pqzkp
 
 import (
