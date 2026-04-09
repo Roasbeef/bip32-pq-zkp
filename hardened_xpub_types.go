@@ -1,0 +1,225 @@
+package bip32pqzkp
+
+import (
+	localbip32 "github.com/roasbeef/bip32-pq-zkp/bip32"
+	host "github.com/roasbeef/go-zkvm/host"
+)
+
+// HardenedXPubClaim is the verifier-visible public claim committed by the
+// reduced hardened-xpub guest.
+type HardenedXPubClaim = localbip32.HardenedXPubClaim
+
+// HardenedXPubWitnessConfig describes the private witness material fed into
+// the hardened-xpub guest.
+type HardenedXPubWitnessConfig struct {
+	// ParentPrivateKeyHex is the serialized parent xpriv scalar.
+	ParentPrivateKeyHex string
+
+	// ParentChainCodeHex is the parent BIP-32 chain code.
+	ParentChainCodeHex string
+
+	// Path is the hardened-only relative child path.
+	Path string
+
+	// UseTestVector selects the built-in reduced-variant witness instead of
+	// explicit input.
+	UseTestVector bool
+}
+
+// HardenedXPubExecuteConfig describes one execute-only run of the reduced
+// hardened-xpub guest.
+type HardenedXPubExecuteConfig struct {
+	// GuestPath points at the packaged guest `.bin` artifact to load.
+	GuestPath string
+
+	// Witness carries the private input to feed into guest stdin.
+	Witness HardenedXPubWitnessConfig
+}
+
+// HardenedXPubProveConfig describes one prove run plus the artifact paths to
+// write for the reduced hardened-xpub guest.
+type HardenedXPubProveConfig struct {
+	// GuestPath points at the packaged guest `.bin` artifact to load.
+	GuestPath string
+
+	// Witness carries the private input to feed into guest stdin.
+	Witness HardenedXPubWitnessConfig
+
+	// ReceiptKind selects the prove-time receipt compression level.
+	ReceiptKind host.ReceiptKind
+
+	// ReceiptOutputPath is where the serialized receipt should be written.
+	ReceiptOutputPath string
+
+	// ClaimOutputPath is where the human-readable claim artifact should go.
+	ClaimOutputPath string
+}
+
+// HardenedXPubVerifyExpectations describes optional verifier-side checks for
+// the reduced hardened-xpub claim.
+type HardenedXPubVerifyExpectations struct {
+	// CompressedPubKeyHex is the expected compressed child xpub.
+	CompressedPubKeyHex string
+
+	// ChainCodeHex is the expected child chain code.
+	ChainCodeHex string
+}
+
+// HardenedXPubVerifyConfig describes one verification run against a stored
+// hardened-xpub receipt.
+type HardenedXPubVerifyConfig struct {
+	// GuestPath points at the packaged guest `.bin` artifact to load.
+	GuestPath string
+
+	// ReceiptInputPath is the serialized receipt to verify.
+	ReceiptInputPath string
+
+	// ClaimInputPath is an optional emitted `claim.json` to cross-check.
+	ClaimInputPath string
+
+	// Expectations holds optional direct public checks.
+	Expectations HardenedXPubVerifyExpectations
+}
+
+// HardenedXPubClaimFile is the canonical human-readable verifier artifact
+// written alongside a hardened-xpub receipt.
+type HardenedXPubClaimFile struct {
+	// SchemaVersion identifies the JSON artifact schema.
+	SchemaVersion uint32 `json:"schema_version"`
+
+	// ImageID is the guest image ID used during prove and verify.
+	ImageID string `json:"image_id"`
+
+	// ClaimVersion mirrors the journal claim version.
+	ClaimVersion uint32 `json:"claim_version"`
+
+	// ClaimFlags mirrors the journal policy flags.
+	ClaimFlags uint32 `json:"claim_flags"`
+
+	// CompressedPubKey is the final compressed child xpub as lowercase hex.
+	CompressedPubKey string `json:"compressed_pubkey"`
+
+	// ChainCode is the child chain code as lowercase hex.
+	ChainCode string `json:"chain_code"`
+
+	// JournalHex is the raw committed journal as lowercase hex.
+	JournalHex string `json:"journal_hex"`
+
+	// JournalSizeBytes is the byte length of the committed journal.
+	JournalSizeBytes int `json:"journal_size_bytes"`
+
+	// ProofSealBytes is the size of the proof seal in bytes. It is
+	// informative metadata rather than a compatibility guarantee.
+	ProofSealBytes uint64 `json:"proof_seal_bytes"`
+
+	// ReceiptEncoding names the serialized receipt encoding expected for
+	// the receipt artifact.
+	ReceiptEncoding string `json:"receipt_encoding"`
+}
+
+// HardenedXPubExecuteReport summarizes the public results of an execute-only
+// run of the reduced hardened-xpub guest.
+type HardenedXPubExecuteReport struct {
+	// GuestPath is the guest artifact path used for the run.
+	GuestPath string
+
+	// GuestSize is the packaged guest size in bytes.
+	GuestSize int
+
+	// ImageID is the computed image ID for the loaded guest.
+	ImageID string
+
+	// UsingTestVector reports whether the built-in witness was used.
+	UsingTestVector bool
+
+	// Claim is the decoded public claim committed by the guest.
+	Claim HardenedXPubClaim
+
+	// ExitCode is the guest exit code summary from execute-only mode.
+	ExitCode string
+
+	// JournalSize is the size of the committed journal in bytes.
+	JournalSize int
+
+	// SegmentCount is the number of zkVM segments executed.
+	SegmentCount uint32
+
+	// SessionRows is the total row count reported by the session.
+	SessionRows uint64
+}
+
+// HardenedXPubProveReport summarizes a prove run and the generated artifacts
+// for the reduced hardened-xpub guest.
+type HardenedXPubProveReport struct {
+	// GuestPath is the guest artifact path used for the proof.
+	GuestPath string
+
+	// GuestSize is the packaged guest size in bytes.
+	GuestSize int
+
+	// ImageID is the computed image ID for the loaded guest.
+	ImageID string
+
+	// UsingTestVector reports whether the built-in witness was used.
+	UsingTestVector bool
+
+	// Claim is the decoded public claim committed by the guest.
+	Claim HardenedXPubClaim
+
+	// ReceiptOutputPath is where the receipt artifact was written.
+	ReceiptOutputPath string
+
+	// ClaimOutputPath is where the readable claim artifact was written.
+	ClaimOutputPath string
+
+	// JournalSize is the size of the committed journal in bytes.
+	JournalSize int
+
+	// ReceiptEncoding names the serialized receipt encoding.
+	ReceiptEncoding string
+
+	// ReceiptKind identifies the concrete receipt representation
+	// returned by the prover.
+	ReceiptKind host.ReceiptKind
+
+	// ProverName identifies the selected proving backend.
+	ProverName string
+
+	// SealBytes is the proof seal size in bytes.
+	SealBytes uint64
+}
+
+// HardenedXPubVerifyReport summarizes the result of verifying a stored
+// hardened-xpub receipt.
+type HardenedXPubVerifyReport struct {
+	// GuestPath is the guest artifact path used for verification.
+	GuestPath string
+
+	// GuestSize is the packaged guest size in bytes.
+	GuestSize int
+
+	// ImageID is the computed image ID for the loaded guest.
+	ImageID string
+
+	// Claim is the decoded public claim recovered from the receipt.
+	Claim HardenedXPubClaim
+
+	// ClaimInputPath is the optional `claim.json` used for comparison.
+	ClaimInputPath string
+
+	// ReceiptInputPath is the serialized receipt that was verified.
+	ReceiptInputPath string
+
+	// JournalSize is the size of the committed journal in bytes.
+	JournalSize int
+
+	// ReceiptEncoding names the serialized receipt encoding.
+	ReceiptEncoding string
+
+	// ReceiptKind identifies the concrete receipt representation that was
+	// verified.
+	ReceiptKind host.ReceiptKind
+
+	// SealBytes is the proof seal size in bytes.
+	SealBytes uint64
+}
