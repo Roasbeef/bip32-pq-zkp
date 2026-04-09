@@ -1,6 +1,9 @@
 // Package main is the demo-specific CLI for the bip32-pq-zkp proof. It
-// provides three subcommands: execute (run without proof), prove (generate
-// receipt + claim.json), and verify (check a stored receipt).
+// provides three families of subcommands for the full Taproot lane and the
+// two reduced comparison lanes:
+//   - execute / prove / verify
+//   - execute-hardened-xpub / prove-hardened-xpub / verify-hardened-xpub
+//   - execute-hardened-xpriv / prove-hardened-xpriv / verify-hardened-xpriv
 //
 // This is a thin entrypoint that delegates all heavy lifting to the
 // bip32pqzkp.Runner, which in turn uses the go-zkvm/host package.
@@ -118,6 +121,66 @@ func main() {
 			fatalf("%v", err)
 		}
 
+	case "execute-hardened-xpub":
+		args, err := parseExecuteHardenedXPubArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := executeHardenedXPub(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
+	case "prove-hardened-xpub":
+		args, err := parseProveHardenedXPubArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := proveHardenedXPub(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
+	case "verify-hardened-xpub":
+		args, err := parseVerifyHardenedXPubArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := verifyHardenedXPub(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
+	case "execute-hardened-xpriv":
+		args, err := parseExecuteHardenedXPrivArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := executeHardenedXPriv(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
+	case "prove-hardened-xpriv":
+		args, err := parseProveHardenedXPrivArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := proveHardenedXPriv(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
+	case "verify-hardened-xpriv":
+		args, err := parseVerifyHardenedXPrivArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := verifyHardenedXPriv(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
 	default:
 		usage()
 		os.Exit(2)
@@ -126,7 +189,11 @@ func main() {
 
 func usage() {
 	fmt.Fprintf(
-		os.Stderr, "usage: %s <execute|prove|verify> [flags]\n",
+		os.Stderr,
+		"usage: %s <execute|prove|verify|"+
+			"execute-hardened-xpub|prove-hardened-xpub|"+
+			"verify-hardened-xpub|execute-hardened-xpriv|"+
+			"prove-hardened-xpriv|verify-hardened-xpriv> [flags]\n",
 		filepath.Base(os.Args[0]),
 	)
 }
