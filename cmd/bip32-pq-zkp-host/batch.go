@@ -30,6 +30,7 @@ func (l *batchLeafList) Set(value string) error {
 type batchArgs struct {
 	guest        string
 	leafKind     string
+	directKinds  batchLeafList
 	leafClaims   batchLeafList
 	leafReceipts batchLeafList
 }
@@ -70,6 +71,15 @@ type batchChainArgs struct {
 	chainOut     string
 }
 
+const (
+	batchLeafKindHelp = "leaf claim kind: hardened-xpriv, taproot, " +
+		"batch-claim-v1, or heterogeneous-envelope-v1"
+
+	heterogeneousDirectLeafKindHelp = "direct child kind for " +
+		"heterogeneous-envelope-v1 batches " +
+		"(repeat in the same order as --leaf-claim)"
+)
+
 func parseExecuteBatchArgs(argv []string) (batchArgs, error) {
 	fs := flag.NewFlagSet("execute-batch", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -81,7 +91,11 @@ func parseExecuteBatchArgs(argv []string) (batchArgs, error) {
 	)
 	fs.StringVar(
 		&args.leafKind, "leaf-kind", "hardened-xpriv",
-		"leaf claim kind: hardened-xpriv or taproot",
+		batchLeafKindHelp,
+	)
+	fs.Var(
+		&args.directKinds, "direct-leaf-kind",
+		heterogeneousDirectLeafKindHelp,
 	)
 	fs.Var(&args.leafClaims, "leaf-claim", "leaf claim.json path (repeat)")
 	fs.Var(
@@ -107,7 +121,11 @@ func parseProveBatchArgs(argv []string) (batchProveArgs, error) {
 	)
 	fs.StringVar(
 		&args.leafKind, "leaf-kind", "hardened-xpriv",
-		"leaf claim kind: hardened-xpriv or taproot",
+		batchLeafKindHelp,
+	)
+	fs.Var(
+		&args.directKinds, "direct-leaf-kind",
+		heterogeneousDirectLeafKindHelp,
 	)
 	fs.Var(&args.leafClaims, "leaf-claim", "leaf claim.json path (repeat)")
 	fs.Var(
@@ -206,7 +224,11 @@ func parseDeriveBatchInclusionArgs(argv []string) (batchInclusionArgs, error) {
 	)
 	fs.StringVar(
 		&args.leafKind, "leaf-kind", "hardened-xpriv",
-		"leaf claim kind: hardened-xpriv or taproot",
+		batchLeafKindHelp,
+	)
+	fs.Var(
+		&args.directKinds, "direct-leaf-kind",
+		heterogeneousDirectLeafKindHelp,
 	)
 	fs.Var(&args.leafClaims, "leaf-claim", "leaf claim.json path (repeat)")
 	fs.Var(
@@ -392,29 +414,69 @@ func parseBatchLeafInputs(
 		)
 	}
 
-	var leafKind uint32
-	switch args.leafKind {
-	case "hardened-xpriv":
-		leafKind = batch.LeafKindHardenedXPriv
-	case "taproot":
-		leafKind = batch.LeafKindTaproot
-	case "batch-claim-v1", "batch-claim":
-		leafKind = batch.LeafKindBatchClaimV1
-	default:
+	leafKind, err := bip32pqzkp.ParseBatchLeafKindName(args.leafKind)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if leafKind == batch.LeafKindHeterogeneousEnvelopeV1 &&
+		len(args.directKinds) != len(args.leafClaims) {
+
 		return nil, 0, fmt.Errorf(
-			"unsupported --leaf-kind %q", args.leafKind,
+			"heterogeneous-envelope-v1 batches require one " +
+				"--direct-leaf-kind per --leaf-claim",
+		)
+	}
+	if leafKind != batch.LeafKindHeterogeneousEnvelopeV1 &&
+		len(args.directKinds) != 0 {
+
+		return nil, 0, fmt.Errorf(
+			"--direct-leaf-kind is only valid with " +
+				"--leaf-kind heterogeneous-envelope-v1",
 		)
 	}
 
 	inputs := make([]bip32pqzkp.BatchLeafInput, 0, len(args.leafClaims))
 	for i := range args.leafClaims {
+		directLeafKind := uint32(0)
+		if leafKind == batch.LeafKindHeterogeneousEnvelopeV1 {
+			parsedKind, err := parseDirectLeafKind(
+				args.directKinds[i],
+			)
+			if err != nil {
+				return nil, 0, fmt.Errorf(
+					"parse direct leaf kind %d: %w",
+					i,
+					err,
+				)
+			}
+			directLeafKind = parsedKind
+		}
+
 		inputs = append(inputs, bip32pqzkp.BatchLeafInput{
-			ReceiptPath: args.leafReceipts[i],
-			ClaimPath:   args.leafClaims[i],
+			DirectLeafKind: directLeafKind,
+			ReceiptPath:    args.leafReceipts[i],
+			ClaimPath:      args.leafClaims[i],
 		})
 	}
 
 	return inputs, leafKind, nil
+}
+
+func parseDirectLeafKind(value string) (uint32, error) {
+	kind, err := bip32pqzkp.ParseBatchLeafKindName(value)
+	if err != nil {
+		return 0, err
+	}
+
+	if !batch.IsAllowedHeterogeneousDirectLeafKindV1(kind) {
+		return 0, fmt.Errorf(
+			"unsupported heterogeneous direct leaf kind %q",
+			value,
+		)
+	}
+
+	return kind, nil
 }
 
 func printBatchClaim(claim batch.Claim) {
@@ -430,6 +492,13 @@ func printBatchClaim(claim batch.Claim) {
 		batch.MerkleHashName(claim.MerkleHashKind),
 	)
 	fmt.Printf("    Leaf count: %d\n", claim.LeafCount)
-	fmt.Printf("    Leaf guest image ID: %x\n", claim.LeafGuestImageID)
+	if claim.UsesPolicyDigest() {
+		fmt.Printf("    Policy digest: %x\n", claim.LeafGuestImageID)
+	} else {
+		fmt.Printf(
+			"    Leaf guest image ID: %x\n",
+			claim.LeafGuestImageID,
+		)
+	}
 	fmt.Printf("    Merkle root: %x\n", claim.MerkleRoot)
 }

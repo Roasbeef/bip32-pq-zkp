@@ -34,6 +34,81 @@ func TestParseBatchLeafInputsSupportsBatchClaimV1(t *testing.T) {
 	}
 }
 
+func TestParseBatchLeafInputsSupportsHeterogeneousEnvelope(t *testing.T) {
+	t.Parallel()
+
+	inputs, leafKind, err := parseBatchLeafInputs(batchArgs{
+		leafKind:    "heterogeneous-envelope-v1",
+		directKinds: batchLeafList{"batch-claim-v1", "hardened-xpriv"},
+		leafClaims: batchLeafList{
+			"child.claim.json",
+			"leaf.claim.json",
+		},
+		leafReceipts: batchLeafList{
+			"child.receipt",
+			"leaf.receipt",
+		},
+	})
+	if err != nil {
+		t.Fatalf("parseBatchLeafInputs failed: %v", err)
+	}
+	if leafKind != batch.LeafKindHeterogeneousEnvelopeV1 {
+		t.Fatalf(
+			"leafKind = %d, want %d",
+			leafKind,
+			batch.LeafKindHeterogeneousEnvelopeV1,
+		)
+	}
+	if len(inputs) != 2 {
+		t.Fatalf("got %d inputs, want 2", len(inputs))
+	}
+	if inputs[0].DirectLeafKind != batch.LeafKindBatchClaimV1 {
+		t.Fatalf(
+			"first direct kind = %d, want %d",
+			inputs[0].DirectLeafKind,
+			batch.LeafKindBatchClaimV1,
+		)
+	}
+	if inputs[1].DirectLeafKind != batch.LeafKindHardenedXPriv {
+		t.Fatalf(
+			"second direct kind = %d, want %d",
+			inputs[1].DirectLeafKind,
+			batch.LeafKindHardenedXPriv,
+		)
+	}
+}
+
+func TestParseBatchLeafInputsRejectsMissingHeterogeneousKinds(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := parseBatchLeafInputs(batchArgs{
+		leafKind: "heterogeneous-envelope-v1",
+		leafClaims: batchLeafList{
+			"a.claim.json",
+		},
+		leafReceipts: batchLeafList{
+			"a.receipt",
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected missing direct leaf kind error")
+	}
+}
+
+func TestParseRunNestedBatchPlanArgs(t *testing.T) {
+	t.Parallel()
+
+	args, err := parseRunNestedBatchPlanArgs([]string{
+		"--plan", "plan.json",
+	})
+	if err != nil {
+		t.Fatalf("parseRunNestedBatchPlanArgs failed: %v", err)
+	}
+	if args.plan != "plan.json" {
+		t.Fatalf("plan = %q, want plan.json", args.plan)
+	}
+}
+
 func TestParseVerifyBatchArgsCollectsRepeatedInclusionFlags(t *testing.T) {
 	t.Parallel()
 

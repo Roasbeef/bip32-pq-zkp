@@ -6,6 +6,7 @@
 //   - execute-hardened-xpriv / prove-hardened-xpriv / verify-hardened-xpriv
 //   - execute-batch / prove-batch / verify-batch / derive-batch-inclusion
 //   - bundle-batch-inclusion-chain
+//   - run-nested-batch-plan
 //
 // This is a thin entrypoint that delegates all heavy lifting to the
 // bip32pqzkp.Runner, which in turn uses the go-zkvm/host package.
@@ -233,6 +234,16 @@ func main() {
 			fatalf("%v", err)
 		}
 
+	case "run-nested-batch-plan":
+		args, err := parseRunNestedBatchPlanArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := runNestedBatchPlan(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
 	default:
 		usage()
 		os.Exit(2)
@@ -247,7 +258,8 @@ func usage() {
 			"verify-hardened-xpub|execute-hardened-xpriv|"+
 			"prove-hardened-xpriv|verify-hardened-xpriv|"+
 			"execute-batch|prove-batch|verify-batch|"+
-			"derive-batch-inclusion|bundle-batch-inclusion-chain> "+
+			"derive-batch-inclusion|bundle-batch-inclusion-chain|"+
+			"run-nested-batch-plan> "+
 			"[flags]\n",
 		filepath.Base(os.Args[0]),
 	)
