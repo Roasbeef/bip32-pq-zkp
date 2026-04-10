@@ -5,6 +5,7 @@
 //   - execute-hardened-xpub / prove-hardened-xpub / verify-hardened-xpub
 //   - execute-hardened-xpriv / prove-hardened-xpriv / verify-hardened-xpriv
 //   - execute-batch / prove-batch / verify-batch / derive-batch-inclusion
+//   - bundle-batch-inclusion-chain
 //
 // This is a thin entrypoint that delegates all heavy lifting to the
 // bip32pqzkp.Runner, which in turn uses the go-zkvm/host package.
@@ -222,6 +223,16 @@ func main() {
 			fatalf("%v", err)
 		}
 
+	case "bundle-batch-inclusion-chain":
+		args, err := parseBundleBatchInclusionChainArgs(os.Args[2:])
+		if err != nil {
+			fatalf("%v", err)
+		}
+
+		if err := bundleBatchInclusionChain(runner, args); err != nil {
+			fatalf("%v", err)
+		}
+
 	default:
 		usage()
 		os.Exit(2)
@@ -236,7 +247,8 @@ func usage() {
 			"verify-hardened-xpub|execute-hardened-xpriv|"+
 			"prove-hardened-xpriv|verify-hardened-xpriv|"+
 			"execute-batch|prove-batch|verify-batch|"+
-			"derive-batch-inclusion> [flags]\n",
+			"derive-batch-inclusion|bundle-batch-inclusion-chain> "+
+			"[flags]\n",
 		filepath.Base(os.Args[0]),
 	)
 }

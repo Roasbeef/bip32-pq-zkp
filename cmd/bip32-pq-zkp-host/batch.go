@@ -41,17 +41,33 @@ type batchProveArgs struct {
 	claimOut    string
 }
 
+// batchVerifyArgs holds the parsed flags for the verify-batch subcommand.
+// The verifier supports two nested inclusion modes: either repeated
+// --inclusion-in flags (one per hierarchy level) or a single bundled
+// --inclusion-chain-in artifact.
 type batchVerifyArgs struct {
-	guest       string
-	receiptIn   string
-	claimIn     string
-	inclusionIn string
+	guest        string
+	receiptIn    string
+	claimIn      string
+	inclusionIns batchLeafList
+	chainIn      string
 }
 
+// batchInclusionArgs holds the parsed flags for the derive-batch-inclusion
+// subcommand, which builds one sparse Merkle inclusion proof for a single
+// disclosed leaf from the ordered leaf set.
 type batchInclusionArgs struct {
 	batchArgs
 	leafIndex uint
 	proofOut  string
+}
+
+// batchChainArgs holds the parsed flags for the bundle-batch-inclusion-chain
+// subcommand, which combines per-level inclusion proofs into a single JSON
+// artifact for the nested batch verifier.
+type batchChainArgs struct {
+	inclusionIns batchLeafList
+	chainOut     string
 }
 
 func parseExecuteBatchArgs(argv []string) (batchArgs, error) {
@@ -135,13 +151,45 @@ func parseVerifyBatchArgs(argv []string) (batchVerifyArgs, error) {
 		&args.claimIn, "claim-in", "",
 		"batch claim.json to compare against",
 	)
+	fs.Var(
+		&args.inclusionIns, "inclusion-in",
+		"optional sparse inclusion proof file "+
+			"(repeat for nested chains)",
+	)
 	fs.StringVar(
-		&args.inclusionIn, "inclusion-in", "",
-		"optional sparse inclusion proof file to verify too",
+		&args.chainIn, "inclusion-chain-in", "",
+		"optional bundled inclusion-chain JSON artifact",
 	)
 
 	if err := fs.Parse(argv); err != nil {
 		return batchVerifyArgs{}, err
+	}
+
+	return args, nil
+}
+
+func parseBundleBatchInclusionChainArgs(
+	argv []string,
+) (batchChainArgs, error) {
+
+	fs := flag.NewFlagSet(
+		"bundle-batch-inclusion-chain",
+		flag.ContinueOnError,
+	)
+	fs.SetOutput(os.Stderr)
+
+	args := batchChainArgs{}
+	fs.Var(
+		&args.inclusionIns, "inclusion-in",
+		"inclusion proof file (repeat in top-down order)",
+	)
+	fs.StringVar(
+		&args.chainOut, "chain-out", "",
+		"where to write the bundled inclusion chain",
+	)
+
+	if err := fs.Parse(argv); err != nil {
+		return batchChainArgs{}, err
 	}
 
 	return args, nil
@@ -237,10 +285,13 @@ func proveBatch(runner *bip32pqzkp.Runner, args batchProveArgs) error {
 
 func verifyBatch(runner *bip32pqzkp.Runner, args batchVerifyArgs) error {
 	report, err := runner.VerifyBatch(bip32pqzkp.BatchVerifyConfig{
-		GuestPath:               args.guest,
-		ReceiptInputPath:        args.receiptIn,
-		ClaimInputPath:          args.claimIn,
-		InclusionProofInputPath: args.inclusionIn,
+		GuestPath:        args.guest,
+		ReceiptInputPath: args.receiptIn,
+		ClaimInputPath:   args.claimIn,
+		InclusionProofInputPaths: append(
+			[]string(nil), args.inclusionIns...,
+		),
+		InclusionChainInputPath: args.chainIn,
 	})
 	if err != nil {
 		return err
@@ -253,15 +304,22 @@ func verifyBatch(runner *bip32pqzkp.Runner, args batchVerifyArgs) error {
 	if report.ClaimInputPath != "" {
 		fmt.Printf("  Claim: %s\n", report.ClaimInputPath)
 	}
-	if report.InclusionProofInputPath != "" {
+	for idx, path := range report.InclusionProofInputPaths {
+		fmt.Printf("  Inclusion proof %d: %s\n", idx, path)
+	}
+	if report.InclusionChainInputPath != "" {
 		fmt.Printf(
-			"  Inclusion proof: %s\n",
-			report.InclusionProofInputPath,
+			"  Inclusion chain: %s\n",
+			report.InclusionChainInputPath,
 		)
 	}
 	fmt.Printf("  Receipt kind: %s\n", report.ReceiptKind)
 	fmt.Printf("  Seal bytes: %d\n", report.SealBytes)
 	printBatchClaim(report.Claim)
+	for idx, nestedClaim := range report.NestedClaims {
+		fmt.Printf("  Nested batch claim %d\n", idx)
+		printBatchClaim(nestedClaim)
+	}
 	return nil
 }
 
@@ -298,6 +356,28 @@ func deriveBatchInclusion(
 	return nil
 }
 
+func bundleBatchInclusionChain(
+	runner *bip32pqzkp.Runner, args batchChainArgs,
+) error {
+
+	report, err := runner.BundleBatchInclusionChain(
+		bip32pqzkp.BatchBundleInclusionChainConfig{
+			ProofInputPaths: append(
+				[]string(nil), args.inclusionIns...,
+			),
+			OutputPath: args.chainOut,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Batch Inclusion Chain\n")
+	fmt.Printf("  Levels: %d\n", report.ProofCount)
+	fmt.Printf("  Chain: %s\n", report.OutputPath)
+	return nil
+}
+
 func parseBatchLeafInputs(
 	args batchArgs,
 ) ([]bip32pqzkp.BatchLeafInput, uint32, error) {
@@ -318,6 +398,8 @@ func parseBatchLeafInputs(
 		leafKind = batch.LeafKindHardenedXPriv
 	case "taproot":
 		leafKind = batch.LeafKindTaproot
+	case "batch-claim-v1", "batch-claim":
+		leafKind = batch.LeafKindBatchClaimV1
 	default:
 		return nil, 0, fmt.Errorf(
 			"unsupported --leaf-kind %q", args.leafKind,
