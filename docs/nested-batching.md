@@ -19,15 +19,15 @@ The first cut is now implemented:
   - child leaf guest image ID
 - a three-level hierarchy `P = batch(H, L)` is validated end to end, with:
   - top root `8fabf9c04a03e18f47ef37fe23c3bdbfb9984767d77b055b53a5ae10e4d7aaf3`
-  - batch guest image ID
-    `c864c3b7dcd4c2326de27277115d0899ab5ca59543c642fda3e3a49551552a33`
+  - a guest image ID derived from the rebuilt local batch guest artifact
 
 What is still deferred:
 
 - flat-root-preserving accumulation
-- mixed direct leaf kinds at one parent level
-- a more efficient one-shot wrapper that avoids rebuilding `host-ffi` and
-  `batch-platform-latest` on every Make target step
+- broader generalized mixed direct leaf kinds beyond the current
+  heterogeneous-envelope v1 mode
+- a faster wrapper path that can optionally skip top-level rebuild checks
+  when the caller already knows the guest and host artifacts are current
 
 ## Goal
 

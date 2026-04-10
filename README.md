@@ -366,10 +366,14 @@ Other open directions:
 - scaling experiments at larger N for the batch aggregation lane
 - deciding whether the disclosed batch leaf format should remain
   hardened-xpriv or move to xpub/full-Taproot for privacy
-- deciding whether to support heterogeneous parent batches such as
-  `{batch_claim_v1, raw_leaf, raw_leaf}`
-- deciding whether the nested wrappers should avoid rebuilding `host-ffi`
-  and `batch-platform-latest` on every step
+- comparing the new heterogeneous parent mode against the homogeneous nested
+  layout at the same total original-leaf count
+- deciding whether the current heterogeneous direct-child envelope should
+  stay narrow (`hardened-xpriv`, `taproot`, `batch_claim_v1`) or grow a more
+  general leaf envelope
+- deciding whether the one-shot nested wrapper should get a faster path that
+  skips top-level rebuild checks when the caller already knows the guest and
+  host artifacts are current
 - spend-bound leaf claims that include outpoint or sighash binding
 
 ## Documentation
@@ -381,4 +385,8 @@ Other open directions:
 - `docs/batch-aggregation.md`: batch aggregation design, verifier flow, and scaling results
 - `docs/nested-batching.md`: implemented nested batch-of-batches design,
   bundled inclusion-chain verification, and current limits
+- `docs/heterogeneous-parent-plan.md`: design rationale behind the now-implemented
+  mixed direct-child parent mode
+- `docs/nested-wrapper-plan.md`: design rationale behind the now-implemented
+  manifest-driven nested wrapper
 - `docs/batch-future-work.md`: post-nested future directions

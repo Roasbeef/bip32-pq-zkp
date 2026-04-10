@@ -15,23 +15,33 @@ Start with `../doc.go` for the package-level overview, then:
    - side-by-side comparison of the full Taproot proof and the two reduced
      hardened-derivation variants
 5. `batch-aggregation.md`
-   - how the v1 batch lane works, batch claim schema, Merkle tree
-     construction, verifier flow, and scaling results
-6. `nested-batching.md`
+   - how the current batch lane works, including homogeneous batches,
+     heterogeneous parents, the batch claim schema, verifier flow, and
+     scaling results
+6. `recursion-batch-walkthrough.md`
+   - standalone walkthrough of how `batch_runner`, `guest_batch`,
+     `zkvm.Verify(...)`, and the host-side assumption receipts fit together
+7. `nested-batching.md`
    - the implemented first hierarchical batch-of-batches extension,
      bundled inclusion-chain verifier path, enforced child-batch
      homogeneity, and current limitations
-7. `mmr-accumulator-sketch.md`
+8. `mmr-accumulator-sketch.md`
    - shorter sketch of the append-only / flat-root-preserving accumulator
      direction if we later need stronger incremental semantics
-8. `batch-future-work.md`
-   - broader future directions beyond the implemented nested layer:
-     heterogeneous parent leaves, accumulator alternatives, and multi-UTXO
-     authorization
-9. `code-format.md`
+9. `batch-future-work.md`
+   - broader future directions beyond the implemented nested and
+     heterogeneous-parent layers: accumulator alternatives, larger studies,
+     and multi-UTXO authorization
+10. `heterogeneous-parent-plan.md`
+   - design note that led to the current mixed direct parent mode for
+     `{batch_claim_v1, raw_leaf_1, raw_leaf_2}`
+11. `nested-wrapper-plan.md`
+   - design note behind the current one-shot nested-batch orchestration
+     command
+12. `code-format.md`
    - the commenting, stanza, and readability rules used for the Go code in
      this repo
-10. `../progress.md`
+13. `../progress.md`
    - repo-local working log and major findings
 
 ## Core Claim

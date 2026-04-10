@@ -10,6 +10,11 @@ See `nested-batching.md` for the implemented first cut and its current
 limitations. This file keeps the broader future-work context beyond that
 initial layer.
 
+For the design rationale behind the two most recent extensions, see:
+
+- `heterogeneous-parent-plan.md`
+- `nested-wrapper-plan.md`
+
 For example, 15 leaves with chunk size 5:
 
 - child batch A proves leaves 0..4
@@ -38,14 +43,16 @@ and one disclosed leaf at the bottom.
 
 ### Remaining Open Questions
 
-1. Whether parent batches should eventually support mixed direct leaf kinds
-   at one level, for example `{batch_claim_v1, raw_leaf_1, raw_leaf_2}`,
-   instead of the current homogeneous-per-level rule
+1. Whether the current heterogeneous direct-child envelope should remain
+   narrow or expand beyond the current allowed kinds:
+   - `hardened-xpriv`
+   - `taproot`
+   - `batch_claim_v1`
 2. Whether a flatter append-only accumulator design becomes preferable once
    the hierarchy gets deeper or batches are produced incrementally over time
-3. Whether the current nested workflow should grow a one-shot wrapper that
-   avoids repeated `host-ffi` and guest rebuild checks across multi-step
-   batch commands
+3. Whether the current one-shot wrapper should grow a faster path that skips
+   top-level rebuild checks across repeated runs when the caller already
+   knows the dependencies are current
 
 ## Leaf Schema Evolution
 

@@ -11,7 +11,8 @@ demo-specific UX across all three proof lanes:
 - Hardened xpriv: `execute-hardened-xpriv`, `prove-hardened-xpriv`,
   `verify-hardened-xpriv`
 - Batch aggregation: `execute-batch`, `prove-batch`, `verify-batch`,
-  `derive-batch-inclusion`, `bundle-batch-inclusion-chain`
+  `derive-batch-inclusion`, `bundle-batch-inclusion-chain`,
+  `run-nested-batch-plan`
 
 ## Expected Sibling Layout
 
@@ -83,11 +84,13 @@ variable aliases that map to the uppercase forms.
 - `BATCH_LEAF_KIND`
 - `BATCH_LEAF_CLAIMS`
 - `BATCH_LEAF_RECEIPTS`
+- `BATCH_DIRECT_LEAF_KINDS`
 - `BATCH_RECEIPT`
 - `BATCH_CLAIM`
 - `BATCH_INCLUSION`
 - `BATCH_INCLUSION_OUT`
 - `BATCH_LEAF_INDEX`
+- `NESTED_BATCH_PLAN`
 
 Variable roles:
 
@@ -296,14 +299,16 @@ Current validated hardened-xpriv batch scaling matrix:
 
 Current validated batch identity values:
 
-- batch guest image ID:
-  - `c864c3b7dcd4c2326de27277115d0899ab5ca59543c642fda3e3a49551552a33`
 - hardened-xpriv leaf guest image ID:
   - `8401a36e4f54cb2beaf9ac7677603806cf9d775e90ef5a70168045a3c0df0849`
 - current two-leaf hardened-xpriv batch Merkle root:
   - `0a0a1d7c7baf543b60321fb0303a4a70d46a6ba8371399110d1affb43efc03c0`
 - current validated three-level nested top root:
   - `8fabf9c04a03e18f47ef37fe23c3bdbfb9984767d77b055b53a5ae10e4d7aaf3`
+
+The batch guest image ID is expected to change whenever the batch guest code
+or batch-claim helpers change, so the docs keep the stable Merkle-root
+examples here rather than pinning one transient batch guest image ID.
 
 Smaller confirmation matrix for the original full Taproot leaf schema:
 
@@ -380,6 +385,82 @@ So the verifier receives:
 The lower-level interface still supports repeated `--inclusion-in` flags on
 `verify-batch`, but the bundled chain artifact is now the primary nested
 verifier path.
+
+### Heterogeneous Parent Batches
+
+The mixed direct-child parent mode is now implemented too. It keeps the same
+84-byte batch claim size, but changes the meaning of the 32-byte context slot:
+
+- `batch_version = 1`
+  - homogeneous parent
+  - `leaf_guest_image_id` pins one shared direct-leaf image ID
+- `batch_version = 2`
+  - heterogeneous parent
+  - the same 32-byte slot becomes a pinned `policy_digest`
+
+Current heterogeneous parent mode uses:
+
+- `BATCH_LEAF_KIND=heterogeneous-envelope-v1`
+- one repeated `BATCH_DIRECT_LEAF_KINDS` entry per direct child
+- fixed-size 128-byte direct-child envelopes carrying:
+  - direct child kind
+  - per-child verify image ID
+  - exact child journal bytes padded to the current maximum
+
+The supported direct child kinds today are:
+
+- `hardened-xpriv`
+- `taproot`
+- `batch-claim-v1`
+
+A direct mixed parent over one raw hardened-xpriv leaf and one child batch
+claim now looks like:
+
+```bash
+make prove-batch GO_GOROOT=/path/to/go1.24.4 \
+  BATCH_LEAF_KIND=heterogeneous-envelope-v1 \
+  BATCH_LEAF_CLAIMS="./artifacts/hardened-xpriv-succinct.claim.json /tmp/child.claim.json" \
+  BATCH_LEAF_RECEIPTS="./artifacts/hardened-xpriv-succinct.receipt /tmp/child.receipt" \
+  BATCH_DIRECT_LEAF_KINDS="hardened-xpriv batch-claim-v1" \
+  RECEIPT_KIND=succinct \
+  BATCH_RECEIPT=/tmp/parent.receipt \
+  BATCH_CLAIM=/tmp/parent.claim.json
+
+make derive-batch-inclusion GO_GOROOT=/path/to/go1.24.4 \
+  BATCH_LEAF_KIND=heterogeneous-envelope-v1 \
+  BATCH_LEAF_CLAIMS="./artifacts/hardened-xpriv-succinct.claim.json /tmp/child.claim.json" \
+  BATCH_LEAF_RECEIPTS="./artifacts/hardened-xpriv-succinct.receipt /tmp/child.receipt" \
+  BATCH_DIRECT_LEAF_KINDS="hardened-xpriv batch-claim-v1" \
+  BATCH_LEAF_INDEX=1 \
+  BATCH_INCLUSION_OUT=/tmp/parent.inclusion.json
+```
+
+If the disclosed heterogeneous child is itself a `batch-claim-v1`, sparse
+verification still becomes a chained proof:
+
+1. verify the top-level heterogeneous parent receipt
+2. verify inclusion of the disclosed mixed direct-child envelope
+3. decode the embedded child batch claim
+4. continue with the next inclusion proof level
+
+### One-Shot Nested Wrapper
+
+The repo now also has a manifest-driven one-shot wrapper:
+
+```bash
+make run-nested-batch-plan GO_GOROOT=/path/to/go1.24.4 \
+  NESTED_BATCH_PLAN=/tmp/nested-plan.json
+```
+
+That manifest is consumed by `run-nested-batch-plan`, which:
+
+1. proves any inline child batches bottom-up
+2. proves the final top-level batch
+3. optionally derives one bundled inclusion chain from `disclosure_path`
+4. optionally verifies the final receipt plus that bundled chain
+
+This wrapper is the ergonomic path. The lower-level subcommands remain the
+debugging surface.
 
 Current validated flat-vs-nested comparison on the hardened-xpriv lane:
 

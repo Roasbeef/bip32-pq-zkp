@@ -21,6 +21,9 @@ The important distinction is:
 
 - the zk receipt proves that the committed batch root was derived correctly
 - the Merkle branch proves that one disclosed leaf is included in that root
+- heterogeneous parents can now mix raw leaves and child batch claims at one
+  level, but they still disclose inclusion through the same Merkle-branch
+  mechanism
 
 ## How It Works
 
@@ -49,6 +52,47 @@ host-side, and passes them as assumptions to the batch guest. The guest:
 The batch guest never sees the leaf private witnesses. It only sees the
 leaf public journals and the host-provided assumption receipts.
 
+### What `guest_batch` And The Runner Each Do
+
+The composition split in the batch lane is:
+
+- runner / host side:
+  - load child `receipt + claim.json` artifacts
+  - decode and pass the child receipts as `Assumptions`
+  - build stdin carrying the ordered public leaf records
+- batch guest side:
+  - read those public leaf records from stdin
+  - call `zkvm.Verify(...)` once per child
+  - hash the ordered leaf records into a Merkle root
+  - commit one fixed-size batch claim
+
+This means the guest never directly verifies the child receipts itself. It
+only registers the exact child claims it depends on.
+
+For homogeneous batches the guest registers:
+
+- `zkvm.Verify(shared_leaf_image_id, leaf_journal)`
+
+For heterogeneous parents the guest registers:
+
+- `zkvm.Verify(envelope.verify_image_id, child_journal)`
+
+Under the hood this creates a conditional top-level receipt whose
+`assumptions_digest` commits to all of those child claim digests. The host
+supplies the actual succinct child receipts, and risc0's recursion pipeline
+resolves them during proving.
+
+So there are two sides to the same dependency set:
+
+- guest:
+  - digest-only assumptions list
+- runner / host:
+  - concrete succinct child receipts
+
+If they disagree, proof generation fails. If they agree, the final batch
+receipt is fully resolved and external verifiers do not need the child
+receipts anymore.
+
 ### Step 3: Final Receipt
 
 The host produces one final batch receipt. This can be composite or
@@ -57,17 +101,51 @@ succinct. The succinct form stays at ~223 KB regardless of N.
 ## Batch Claim Schema (84 bytes)
 
 ```text
-[0:4]   batch_version      (uint32 LE, currently 1)
+[0:4]   batch_version      (uint32 LE)
 [4:8]   batch_flags        (uint32 LE, currently 0)
-[8:12]  leaf_claim_kind    (uint32 LE: 1=taproot, 2=hardened_xpriv, 3=batch_claim_v1)
+[8:12]  leaf_claim_kind    (uint32 LE: 1=taproot, 2=hardened_xpriv,
+                            3=batch_claim_v1, 4=heterogeneous_envelope_v1)
 [12:16] merkle_hash_kind   (uint32 LE: 1=sha256)
 [16:20] leaf_count         (uint32 LE)
-[20:52] leaf_guest_image_id (32 bytes, pinned once per batch)
+[20:52] context_digest      (32 bytes)
 [52:84] merkle_root         (32 bytes, SHA-256 Merkle root)
 ```
 
-The claim is fixed-size regardless of N. The fan-out is captured by the
-Merkle root, not by enumerating leaves in the journal.
+The claim is fixed-size regardless of N. The fan-out is captured by the Merkle
+root, not by enumerating leaves in the journal.
+
+How the 32-byte context slot is interpreted:
+
+- homogeneous batch (`batch_version = 1`)
+  - one shared direct-leaf image ID
+- heterogeneous parent (`batch_version = 2`)
+  - one pinned policy digest describing the direct-child envelope mode
+
+## Heterogeneous Direct-Child Envelopes (128 bytes)
+
+The mixed direct-parent mode is now implemented with a fixed-size envelope:
+
+```text
+[0:4]   envelope_version    (uint32 LE, currently 1)
+[4:8]   direct_leaf_kind    (uint32 LE)
+[8:40]  verify_image_id     (32 bytes)
+[40:44] journal_len         (uint32 LE)
+[44:128] padded_journal     (84-byte fixed slot)
+```
+
+The current allowed direct child kinds are:
+
+- `taproot`
+- `hardened_xpriv`
+- `batch_claim_v1`
+
+This means a parent can now directly aggregate a set such as:
+
+- one raw hardened-xpriv claim
+- one raw Taproot claim
+- one child batch claim
+
+while still keeping the final public claim fixed at 84 bytes.
 
 ## Merkle Tree Construction
 
@@ -87,8 +165,14 @@ duplicate the last node (Bitcoin-style).
 1. load the final batch receipt
 2. verify it against the batch guest image ID
 3. decode the batch claim from the journal
-4. the verifier now knows: N valid leaf receipts exist, all from the
-   pinned leaf guest image, with journals hashing to the committed root
+4. the verifier now knows:
+   - homogeneous mode:
+     - `N` valid leaf receipts exist, all from the pinned leaf guest image,
+       with journals hashing to the committed root
+   - heterogeneous mode:
+     - `N` valid direct-child receipts exist, all satisfying the pinned
+       direct-child envelope policy digest, with envelopes hashing to the
+       committed root
 
 ### Sparse Verification (One Disclosed Leaf)
 
@@ -101,6 +185,21 @@ duplicate the last node (Bitcoin-style).
 
 No leaf receipt needs to be distributed. The batch receipt already proves
 that the root came from valid leaf receipts.
+
+### Sparse Verification (Heterogeneous Parent)
+
+For a heterogeneous parent, the disclosed Merkle leaf is the 128-byte
+direct-child envelope. The verifier:
+
+1. verifies the final heterogeneous receipt
+2. checks inclusion of the disclosed envelope
+3. inspects the envelope:
+   - direct child kind
+   - per-child verify image ID
+   - embedded journal bytes
+4. if the direct child is raw, stops there
+5. if the direct child is `batch_claim_v1`, continues with the next
+   inclusion-proof level
 
 ### Sparse Verification (Nested Batch Chain)
 
@@ -124,6 +223,93 @@ The verifier flow becomes:
 
 So the final verifier-facing artifact is still one receipt plus small JSON
 artifacts, but sparse verification now needs one Merkle branch per level.
+
+### One-Shot Nested Wrapper
+
+The repo now also exposes a manifest-driven wrapper through
+`run-nested-batch-plan`. The wrapper is thin orchestration over the same
+`Runner` methods used by the lower-level commands:
+
+1. prove inline child batches bottom-up
+2. prove the final top-level batch
+3. optionally derive a bundled inclusion chain from one `disclosure_path`
+4. optionally verify the final receipt plus that bundled chain
+
+That means the current batch lane has both:
+
+- low-level composable commands for debugging
+- one ergonomic one-shot wrapper for repeatable nested demos
+
+## Artifact Sizes And What They Mean
+
+The batch lane produces three different artifact classes, and they scale
+differently:
+
+### 1. Final Receipt
+
+This is the actual zk proof artifact distributed to verifiers.
+
+- composite mode:
+  - grows with the amount of aggregation work
+- succinct mode:
+  - stays near the ~223 KB floor in the current design
+
+The receipt proves the batch guest execution itself. It is the only artifact
+that is cryptographically required for full receipt verification.
+
+### 2. `claim.json`
+
+This is the human-readable decoded view of the fixed-size public batch
+journal.
+
+- the true on-proof public claim is only 84 bytes
+- `claim.json` is usually about 755-760 bytes because it adds:
+  - JSON field names
+  - lowercase hex encodings
+  - convenience metadata like `proof_seal_bytes`
+
+For a heterogeneous parent, the JSON carries fields like:
+
+- `batch_version`
+- `leaf_claim_kind_name`
+- `leaf_count`
+- `policy_digest`
+- `merkle_root`
+- `journal_hex`
+- `receipt_encoding`
+
+This file does not enumerate all children. It stays essentially flat as the
+batch grows because the fan-out is captured by `merkle_root`, not by listing
+every child journal in the public claim.
+
+### 3. Inclusion Proof Artifacts
+
+These are the sparse-disclosure artifacts used when a verifier wants to check
+one disclosed leaf rather than only accepting the batch root at face value.
+
+- flat homogeneous batch:
+  - one Merkle inclusion proof
+- nested homogeneous batch:
+  - one inclusion proof per level
+- heterogeneous parent:
+  - one parent-level envelope inclusion proof, plus additional lower-level
+    proofs if the disclosed child is itself a nested batch
+
+This is the part that grows with:
+
+- `O(log N)` branch length within one batch
+- disclosure depth across nested levels
+
+So the practical size model is:
+
+- final succinct receipt: near-constant
+- `claim.json`: near-constant
+- inclusion proof JSON: grows with disclosed depth and branch length
+
+That is why a statement like `B = {A, 4}` still has a small final
+`B.claim.json`: it records only the top-level batch metadata and root. To
+show something under `A`, the verifier additionally needs the inclusion of
+`A` into `B`, then the inclusion of the target leaf into `A`.
 
 ## Scaling Results
 
@@ -236,3 +422,7 @@ Grows with number of disclosed leaves:
 6. First nested `batch_claim_v1` parent layer implemented with a bundled
    inclusion-chain verifier artifact, while repeated `--inclusion-in` files
    remain available as the low-level interface
+7. Heterogeneous parent `batch_version = 2` implemented with fixed-size
+   direct-child envelopes and a pinned policy digest
+8. Manifest-driven `run-nested-batch-plan` wrapper implemented on top of the
+   same `Runner` methods
