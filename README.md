@@ -247,8 +247,7 @@ composite receipt is already close to the succinct size floor.
 
 The hardened-xpriv variant is the most efficient: ~2 seconds to prove, ~235 KB
 composite receipt, and only 3.14 GB peak RAM (vs 11.9 GB for the full lane).
-It is the natural first leaf proof for the current batch-aggregation
-prototype.
+It is the natural first leaf proof for the current batch-aggregation lane.
 
 All three lanes share the same BIP-32 derivation core (`bip32/`) and the same
 host plumbing pattern. See `docs/reduced-variants.md` for full benchmarks,
@@ -264,7 +263,7 @@ make verify-hardened-xpriv GO_GOROOT=/path/to/go1.24.4
 
 ## Batch Aggregation
 
-The batch aggregation prototype uses risc0's recursive composition to verify
+The current v1 batch aggregation lane uses risc0's recursive composition to verify
 N leaf receipts inside one aggregation guest and commit a single Merkle root.
 The result is one final receipt that proves: "there exist N valid leaf
 receipts, all from the same guest image, whose ordered journals hash to
@@ -274,18 +273,46 @@ The batch guest supports both hardened-xpriv and full Taproot leaf schemas.
 Verifiers can either verify the batch receipt alone or check one disclosed
 leaf via an ordinary Merkle inclusion proof generated outside the guest.
 
-Current two-leaf hardened-xpriv batch results:
+Current hardened-xpriv batch scaling results:
 
-| Metric | Composite | Succinct |
-|--------|-----------|----------|
-| Batch proof seal | 679,904 B | 222,668 B |
-| Batch receipt on disk | 681,214 B | 223,343 B |
-| Batch claim.json | 755 B | 755 B |
-| Inclusion proof | 456 B | 456 B |
+| N | Kind | Receipt bytes | Seal bytes | Claim JSON | Inclusion JSON | Prove sec |
+|---|------|---------------|------------|------------|----------------|-----------|
+| 2 | composite | 681,214 | 679,904 | 755 | 456 | 2.06 |
+| 2 | succinct  | 223,343 | 222,668 | 755 | 456 | 5.35 |
+| 4 | composite | 1,138,062 | 1,135,864 | 756 | 528 | 3.66 |
+| 4 | succinct  | 223,343 | 222,668 | 755 | 528 | 9.44 |
+| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.31 |
+| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 18.35 |
+| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.50 |
+| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 34.91 |
 
-The succinct batch receipt stays at the same ~222 KB floor as single-leaf
-succinct receipts. The fan-out lives in the Merkle inclusion layer, not the
-receipt layer.
+The final succinct batch receipt stayed flat at ~223 KB across the current
+matrix. The fan-out shows up in the Merkle inclusion layer and the batch
+claim metadata, not in the final succinct receipt itself.
+
+For sparse disclosure, that gives a much better verifier artifact story than
+shipping many leaf receipts directly. On the hardened-xpriv lane:
+
+| N | `N` separate succinct leaf receipts | Final succinct batch + claim + inclusion |
+|---|-------------------------------------|------------------------------------------|
+| 2 | 446,638 B | 224,554 B |
+| 4 | 893,276 B | 224,626 B |
+| 8 | 1,786,552 B | 224,698 B |
+| 16 | 3,573,104 B | 224,772 B |
+
+A smaller confirmation matrix on the original full Taproot leaf schema landed
+very close to the hardened-xpriv numbers:
+
+- `N=2`
+  - composite receipt: `681,214` bytes
+  - succinct receipt: `223,343` bytes
+- `N=8`
+  - composite receipt: `2,042,158` bytes
+  - succinct receipt: `223,343` bytes
+
+That strongly suggests the current aggregation cost is mostly “verify `N`
+succinct leaf receipts plus Merkle-hash their journals,” not “re-run the
+original leaf semantics.”
 
 Quick start:
 
