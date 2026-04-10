@@ -21,6 +21,7 @@ BATCH_CLAIM ?= $(ARTIFACT_DIR)/hardened-xpriv-batch.claim.json
 BATCH_INCLUSION ?= $(batch_inclusion)
 BATCH_INCLUSIONS ?= $(if $(strip $(batch_inclusions)),$(batch_inclusions),$(BATCH_INCLUSION))
 BATCH_INCLUSION_CHAIN ?= $(if $(strip $(batch_inclusion_chain)),$(batch_inclusion_chain),$(ARTIFACT_DIR)/batch.inclusion-chain.json)
+NESTED_BATCH_PLAN ?= $(if $(strip $(nested_batch_plan)),$(nested_batch_plan),$(ARTIFACT_DIR)/nested-batch-plan.json)
 BATCH_INCLUSION_OUT ?= $(if $(strip $(batch_inclusion_out)),$(batch_inclusion_out),$(ARTIFACT_DIR)/hardened-xpriv-batch.inclusion.json)
 PARENT_BATCH_RECEIPT ?= $(if $(strip $(parent_batch_receipt)),$(parent_batch_receipt),$(ARTIFACT_DIR)/parent-batch.receipt)
 PARENT_BATCH_CLAIM ?= $(if $(strip $(parent_batch_claim)),$(parent_batch_claim),$(ARTIFACT_DIR)/parent-batch.claim.json)
@@ -45,6 +46,7 @@ EXPECTED_CHAIN_CODE ?= $(expected_chain_code)
 BATCH_LEAF_KIND ?= $(if $(strip $(leaf_kind)),$(leaf_kind),hardened-xpriv)
 BATCH_LEAF_CLAIMS ?= $(if $(strip $(leaf_claims)),$(leaf_claims),$(ARTIFACT_DIR)/hardened-xpriv-succinct.claim.json $(ARTIFACT_DIR)/hardened-xpriv-succinct.claim.json)
 BATCH_LEAF_RECEIPTS ?= $(if $(strip $(leaf_receipts)),$(leaf_receipts),$(ARTIFACT_DIR)/hardened-xpriv-succinct.receipt $(ARTIFACT_DIR)/hardened-xpriv-succinct.receipt)
+BATCH_DIRECT_LEAF_KINDS ?= $(if $(strip $(direct_leaf_kinds)),$(direct_leaf_kinds),)
 BATCH_LEAF_INDEX ?= $(if $(strip $(leaf_index)),$(leaf_index),0)
 REQUIRE_BIP86 ?= 1
 RECEIPT_KIND ?= $(if $(strip $(receipt_kind)),$(receipt_kind),composite)
@@ -60,7 +62,7 @@ define print
 	@echo $(GREEN)$1$(NC)
 endef
 
-.PHONY: all check-tools hostcheck platform-standalone host-ffi bip32-platform-latest batch-platform-latest hardened-xpub-platform-latest hardened-xpriv-platform-latest execute prove verify execute-batch prove-batch verify-batch derive-batch-inclusion bundle-batch-inclusion-chain prove-parent-batch derive-parent-batch-inclusion verify-nested-batch execute-hardened-xpub prove-hardened-xpub verify-hardened-xpub execute-hardened-xpriv prove-hardened-xpriv verify-hardened-xpriv fmt fmt-check tidy tidy-check local-custom-gcl install-custom-gcl build-native-linter lint-native lint native-check clean
+.PHONY: all check-tools hostcheck platform-standalone host-ffi bip32-platform-latest batch-platform-latest hardened-xpub-platform-latest hardened-xpriv-platform-latest execute prove verify execute-batch prove-batch verify-batch derive-batch-inclusion bundle-batch-inclusion-chain prove-parent-batch derive-parent-batch-inclusion verify-nested-batch run-nested-batch-plan execute-hardened-xpub prove-hardened-xpub verify-hardened-xpub execute-hardened-xpriv prove-hardened-xpriv verify-hardened-xpriv fmt fmt-check tidy tidy-check local-custom-gcl install-custom-gcl build-native-linter lint-native lint native-check clean
 
 all: bip32-platform-latest
 
@@ -140,16 +142,16 @@ verify: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify --guest ./bip32-platform-latest.bin --receipt-in $(RECEIPT) $(if $(strip $(CLAIM)),--claim-in $(CLAIM),) $(call verify_args)
 
 execute-batch: host-ffi batch-platform-latest
-	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-batch --guest ./batch-platform-latest.bin --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args)
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-batch --guest ./batch-platform-latest.bin --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) $(call batch_direct_leaf_args)
 
 prove-batch: host-ffi batch-platform-latest
-	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove-batch --guest ./batch-platform-latest.bin --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) --receipt-kind $(RECEIPT_KIND) --receipt-out $(BATCH_RECEIPT) --claim-out $(BATCH_CLAIM)
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove-batch --guest ./batch-platform-latest.bin --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) $(call batch_direct_leaf_args) --receipt-kind $(RECEIPT_KIND) --receipt-out $(BATCH_RECEIPT) --claim-out $(BATCH_CLAIM)
 
 verify-batch: host-ffi batch-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify-batch --guest ./batch-platform-latest.bin --receipt-in $(BATCH_RECEIPT) $(if $(strip $(BATCH_CLAIM)),--claim-in $(BATCH_CLAIM),) $(call batch_inclusion_args) $(if $(strip $(BATCH_INCLUSION_CHAIN)),--inclusion-chain-in $(BATCH_INCLUSION_CHAIN),)
 
 derive-batch-inclusion: host-ffi
-	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) derive-batch-inclusion --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) --leaf-index $(BATCH_LEAF_INDEX) --proof-out $(BATCH_INCLUSION_OUT)
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) derive-batch-inclusion --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) $(call batch_direct_leaf_args) --leaf-index $(BATCH_LEAF_INDEX) --proof-out $(BATCH_INCLUSION_OUT)
 
 bundle-batch-inclusion-chain: host-ffi
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) bundle-batch-inclusion-chain $(call batch_inclusion_args) --chain-out $(BATCH_INCLUSION_CHAIN)
@@ -162,6 +164,9 @@ derive-parent-batch-inclusion: host-ffi
 
 verify-nested-batch: host-ffi batch-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify-batch --guest ./batch-platform-latest.bin --receipt-in $(PARENT_BATCH_RECEIPT) $(if $(strip $(PARENT_BATCH_CLAIM)),--claim-in $(PARENT_BATCH_CLAIM),) $(if $(strip $(BATCH_INCLUSION_CHAIN)),--inclusion-chain-in $(BATCH_INCLUSION_CHAIN),)
+
+run-nested-batch-plan: host-ffi batch-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) run-nested-batch-plan --plan $(NESTED_BATCH_PLAN)
 
 execute-hardened-xpub: host-ffi hardened-xpub-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-hardened-xpub --guest ./hardened-xpub-platform-latest.bin $(call hardened_xpub_witness_args)
@@ -212,6 +217,10 @@ endef
 
 define batch_leaf_args
 $(foreach claim,$(BATCH_LEAF_CLAIMS),--leaf-claim $(claim)) $(foreach receipt,$(BATCH_LEAF_RECEIPTS),--leaf-receipt $(receipt))
+endef
+
+define batch_direct_leaf_args
+$(foreach kind,$(BATCH_DIRECT_LEAF_KINDS),--direct-leaf-kind $(kind))
 endef
 
 define batch_inclusion_args
