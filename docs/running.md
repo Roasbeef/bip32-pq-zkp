@@ -281,24 +281,40 @@ make prove-batch GO_GOROOT=/path/to/go1.24.4 \
   BATCH_CLAIM=./artifacts/taproot-batch.claim.json
 ```
 
-Current validated batch measurements for the two-leaf hardened-xpriv demo:
+Current validated hardened-xpriv batch scaling matrix:
+
+| N | Kind | Receipt bytes | Seal bytes | Claim JSON | Inclusion JSON | Prove sec | Verify sec |
+|---|------|---------------|------------|------------|----------------|-----------|------------|
+| 2 | composite | 681,214 | 679,904 | 755 | 456 | 2.06 | 0.04 |
+| 2 | succinct  | 223,343 | 222,668 | 755 | 456 | 5.35 | 0.02 |
+| 4 | composite | 1,138,062 | 1,135,864 | 756 | 528 | 3.66 | 0.06 |
+| 4 | succinct  | 223,343 | 222,668 | 755 | 528 | 9.44 | 0.02 |
+| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.31 | 0.10 |
+| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 18.35 | 0.02 |
+| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.50 | 0.21 |
+| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 34.91 | 0.02 |
+
+Current validated batch identity values:
 
 - batch guest image ID:
   - `be640787a044075b250a09002bb4f1e0000723cd0757e49160ce5b7b030623f7`
-- leaf guest image ID:
+- hardened-xpriv leaf guest image ID:
   - `8401a36e4f54cb2beaf9ac7677603806cf9d775e90ef5a70168045a3c0df0849`
-- batch Merkle root:
+- current two-leaf hardened-xpriv batch Merkle root:
   - `0a0a1d7c7baf543b60321fb0303a4a70d46a6ba8371399110d1affb43efc03c0`
-- composite batch receipt:
-  - seal `679904` bytes
-  - receipt file `681214` bytes
-- succinct batch receipt:
-  - seal `222668` bytes
-  - receipt file `223343` bytes
-- batch claim JSON:
-  - `755` bytes
-- batch inclusion proof JSON:
-  - `456` bytes
+
+Smaller confirmation matrix for the original full Taproot leaf schema:
+
+| N | Kind | Receipt bytes | Claim JSON | Inclusion JSON | Prove sec |
+|---|------|---------------|------------|----------------|-----------|
+| 2 | composite | 681,214 | 748 | 449 | 2.64 |
+| 2 | succinct  | 223,343 | 748 | 449 | 6.43 |
+| 8 | composite | 2,042,158 | 749 | 593 | 10.35 |
+| 8 | succinct  | 223,343 | 748 | 593 | 21.22 |
+
+The key measured takeaway is that the final succinct batch receipt stays flat
+at ~223 KB across the current matrix, while the batch fan-out shows up in the
+Merkle inclusion artifact rather than the final receipt itself.
 
 Compatibility notes for verifiers:
 

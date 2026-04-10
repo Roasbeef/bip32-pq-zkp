@@ -15,7 +15,7 @@ Start with `../doc.go` for the package-level overview, then:
    - side-by-side comparison of the full Taproot proof and the two reduced
      hardened-derivation variants
 5. `aggregation-design.md`
-   - recursive batch aggregation design, the implemented v1 prototype,
+   - recursive batch aggregation design, the implemented v1 batch lane,
      Merkle-root claims, and sparse verification
 6. `code-format.md`
    - the commenting, stanza, and readability rules used for the Go code in
