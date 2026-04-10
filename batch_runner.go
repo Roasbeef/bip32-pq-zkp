@@ -165,7 +165,7 @@ func (r *Runner) ProveBatch(
 }
 
 // VerifyBatch checks a stored batch receipt against the current batch guest
-// image ID and optionally verifies one sparse inclusion proof.
+// image ID and optionally verifies one or more sparse inclusion proofs.
 func (r *Runner) VerifyBatch(
 	cfg BatchVerifyConfig,
 ) (*BatchVerifyReport, error) {
@@ -218,28 +218,35 @@ func (r *Runner) VerifyBatch(
 			return nil, err
 		}
 	}
-	if cfg.InclusionProofInputPath != "" {
-		inclusionProof, err := ReadBatchInclusionProofFile(
-			cfg.InclusionProofInputPath,
+	var nestedClaims []batch.Claim
+	inclusionProofs, err := loadBatchInclusionProofs(
+		cfg.InclusionProofInputPaths,
+		cfg.InclusionChainInputPath,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(inclusionProofs) != 0 {
+		nestedClaims, err = VerifyBatchInclusionChain(
+			claim, inclusionProofs,
 		)
 		if err != nil {
-			return nil, err
-		}
-		if err := verifyBatchInclusionProof(
-			claim, inclusionProof,
-		); err != nil {
 			return nil, err
 		}
 	}
 
 	return &BatchVerifyReport{
-		GuestPath:               guestPath,
-		GuestSize:               len(guestBinary),
-		ImageID:                 imageID,
-		Claim:                   claim,
-		ClaimInputPath:          cfg.ClaimInputPath,
-		ReceiptInputPath:        cfg.ReceiptInputPath,
-		InclusionProofInputPath: cfg.InclusionProofInputPath,
+		GuestPath:        guestPath,
+		GuestSize:        len(guestBinary),
+		ImageID:          imageID,
+		Claim:            claim,
+		ClaimInputPath:   cfg.ClaimInputPath,
+		ReceiptInputPath: cfg.ReceiptInputPath,
+		InclusionProofInputPaths: append(
+			[]string(nil), cfg.InclusionProofInputPaths...,
+		),
+		InclusionChainInputPath: cfg.InclusionChainInputPath,
+		NestedClaims:            nestedClaims,
 		JournalSize:             len(result.Journal),
 		ReceiptEncoding:         result.ReceiptEncoding,
 		ReceiptKind:             result.ReceiptKind,
@@ -294,6 +301,42 @@ func (r *Runner) DeriveBatchInclusionProof(
 		LeafIndex:     proof.LeafIndex,
 		OutputPath:    cfg.OutputPath,
 		MerkleRoot:    root,
+	}, nil
+}
+
+// BundleBatchInclusionChain combines one or more level-local inclusion proofs
+// into a single nested verifier artifact.
+func (r *Runner) BundleBatchInclusionChain(
+	cfg BatchBundleInclusionChainConfig,
+) (*BatchBundleInclusionChainReport, error) {
+
+	if cfg.OutputPath == "" {
+		return nil, errors.New("--chain-out is required")
+	}
+	if len(cfg.ProofInputPaths) == 0 {
+		return nil, errors.New(
+			"at least one inclusion proof is required",
+		)
+	}
+
+	proofs, err := loadBatchInclusionProofs(cfg.ProofInputPaths, "")
+	if err != nil {
+		return nil, err
+	}
+
+	chain := BatchInclusionChainFile{
+		SchemaVersion: 1,
+		Proofs:        proofs,
+	}
+	if err := WriteBatchInclusionChainFile(
+		cfg.OutputPath, chain,
+	); err != nil {
+		return nil, err
+	}
+
+	return &BatchBundleInclusionChainReport{
+		ProofCount: len(proofs),
+		OutputPath: cfg.OutputPath,
 	}, nil
 }
 

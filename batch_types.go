@@ -25,6 +25,10 @@ const (
 	// BatchLeafKindHardenedXPriv batches the reduced hardened-xpriv
 	// leaf claim.
 	BatchLeafKindHardenedXPriv = batch.LeafKindHardenedXPriv
+
+	// BatchLeafKindBatchClaimV1 batches an existing serialized v1 batch
+	// claim as a parent-level leaf.
+	BatchLeafKindBatchClaimV1 = batch.LeafKindBatchClaimV1
 )
 
 const (
@@ -94,10 +98,14 @@ type BatchVerifyConfig struct {
 	// to cross-check.
 	ClaimInputPath string
 
-	// InclusionProofInputPath optionally enables sparse
-	// verification for one disclosed leaf via an ordinary
-	// Merkle branch.
-	InclusionProofInputPath string
+	// InclusionProofInputPaths optionally enable sparse verification.
+	// One path verifies a flat batch, while multiple paths verify a nested
+	// chain from the top-level batch down to the final disclosed leaf.
+	InclusionProofInputPaths []string
+
+	// InclusionChainInputPath optionally provides the same nested verifier
+	// chain as one bundled JSON artifact.
+	InclusionChainInputPath string
 }
 
 // BatchDeriveInclusionConfig describes one host-side derivation of a sparse
@@ -199,6 +207,16 @@ type BatchInclusionProofFile struct {
 	Siblings []string `json:"siblings"`
 }
 
+// BatchInclusionChainFile bundles one or more level-local inclusion proofs
+// into a single nested verifier artifact.
+type BatchInclusionChainFile struct {
+	// SchemaVersion identifies the inclusion-chain JSON schema.
+	SchemaVersion uint32 `json:"schema_version"`
+
+	// Proofs are ordered from the top-level batch down to the final leaf.
+	Proofs []BatchInclusionProofFile `json:"proofs"`
+}
+
 // BatchExecuteReport summarizes the public results of an execute-only run of
 // the batch aggregation guest.
 type BatchExecuteReport struct {
@@ -292,8 +310,17 @@ type BatchVerifyReport struct {
 	// ReceiptInputPath is the serialized batch receipt that was verified.
 	ReceiptInputPath string
 
-	// InclusionProofInputPath is the optional sparse-inclusion proof file.
-	InclusionProofInputPath string
+	// InclusionProofInputPaths are the optional sparse-inclusion proof
+	// files verified against the final batch claim.
+	InclusionProofInputPaths []string
+
+	// InclusionChainInputPath is the optional bundled inclusion-chain file.
+	InclusionChainInputPath string
+
+	// NestedClaims are the decoded intermediate batch claims traversed
+	// while checking a nested inclusion chain. Flat batches leave this
+	// empty.
+	NestedClaims []batch.Claim
 
 	// JournalSize is the size of the committed journal in bytes.
 	JournalSize int
@@ -307,6 +334,26 @@ type BatchVerifyReport struct {
 
 	// SealBytes is the proof seal size in bytes.
 	SealBytes uint64
+}
+
+// BatchBundleInclusionChainConfig describes one host-side bundling of
+// existing level-local inclusion proofs into a single JSON artifact.
+type BatchBundleInclusionChainConfig struct {
+	// ProofInputPaths identifies the ordered inclusion-proof files from the
+	// top-level batch down to the final leaf.
+	ProofInputPaths []string
+
+	// OutputPath is where the bundled inclusion-chain artifact should go.
+	OutputPath string
+}
+
+// BatchBundleInclusionChainReport summarizes one bundled inclusion chain.
+type BatchBundleInclusionChainReport struct {
+	// ProofCount is the number of level-local inclusion proofs bundled.
+	ProofCount int
+
+	// OutputPath is where the bundled inclusion-chain artifact was written.
+	OutputPath string
 }
 
 // BatchDeriveInclusionReport summarizes one derived sparse inclusion proof.
