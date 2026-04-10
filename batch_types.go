@@ -29,6 +29,12 @@ const (
 	// BatchLeafKindBatchClaimV1 batches an existing serialized v1 batch
 	// claim as a parent-level leaf.
 	BatchLeafKindBatchClaimV1 = batch.LeafKindBatchClaimV1
+
+	// BatchLeafKindHeterogeneousEnvelopeV1 batches fixed-size
+	// direct-child envelopes that can mix raw leaves and nested
+	// batch claims under one parent.
+	BatchLeafKindHeterogeneousEnvelopeV1 = batch.
+						LeafKindHeterogeneousEnvelopeV1
 )
 
 const (
@@ -40,6 +46,11 @@ const (
 // BatchLeafInput identifies one existing leaf receipt plus its canonical
 // claim.json artifact.
 type BatchLeafInput struct {
+	// DirectLeafKind identifies the semantic child kind represented by this
+	// input when the enclosing batch uses heterogeneous direct-child
+	// envelopes. Homogeneous batches leave this as zero.
+	DirectLeafKind uint32
+
 	// ReceiptPath is the serialized leaf receipt to use as an assumption.
 	ReceiptPath string
 
@@ -156,8 +167,16 @@ type BatchClaimFile struct {
 	// LeafCount is the number of leaves committed under the root.
 	LeafCount uint32 `json:"leaf_count"`
 
-	// LeafGuestImageID is the common leaf guest image ID as lowercase hex.
-	LeafGuestImageID string `json:"leaf_guest_image_id"`
+	// LeafGuestImageID is the common direct-leaf guest image ID
+	// for homogeneous batches. Heterogeneous parent batches leave
+	// this empty and use PolicyDigest instead.
+	LeafGuestImageID string `json:"leaf_guest_image_id,omitempty"`
+
+	// PolicyDigest is the pinned
+	// heterogeneous-parent policy
+	// digest for mixed
+	// direct-child batches.
+	PolicyDigest string `json:"policy_digest,omitempty"`
 
 	// MerkleRoot is the committed batch root as lowercase hex.
 	MerkleRoot string `json:"merkle_root"`
@@ -200,8 +219,22 @@ type BatchInclusionProofFile struct {
 	// LeafCount is the total number of leaves in the batch.
 	LeafCount uint32 `json:"leaf_count"`
 
-	// LeafJournalHex is the disclosed leaf journal as lowercase hex.
+	// LeafJournalHex is the disclosed leaf record as lowercase hex. For
+	// homogeneous batches this is the raw direct-child journal. For
+	// heterogeneous parents this is the fixed-size direct-child envelope.
 	LeafJournalHex string `json:"leaf_journal_hex"`
+
+	// DirectLeafKind identifies the semantic direct child stored
+	// in a heterogeneous direct-child envelope. Homogeneous
+	// batches leave this at zero.
+	DirectLeafKind uint32 `json:"direct_leaf_kind,omitempty"`
+
+	// DirectLeafKindName is the readable name of DirectLeafKind.
+	DirectLeafKindName string `json:"direct_leaf_kind_name,omitempty"`
+
+	// DirectLeafImageID is the per-child image ID disclosed by a
+	// heterogeneous direct-child envelope.
+	DirectLeafImageID string `json:"direct_leaf_image_id,omitempty"`
 
 	// Siblings are the sibling digests from leaf to root as lowercase hex.
 	Siblings []string `json:"siblings"`

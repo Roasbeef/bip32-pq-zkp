@@ -45,11 +45,16 @@ type genericLeafClaimFile struct {
 // are passed to the go-zkvm host API so the risc0 recursion pipeline can
 // resolve the guest-side zkvm.Verify calls.
 type loadedBatchLeaves struct {
-	// leafGuestImageID is the common image ID shared by all leaf receipts.
-	leafGuestImageID [32]byte
+	// leafContextDigest is the batch-global 32-byte context slot written
+	// into the batch claim and the batch witness header. For homogeneous
+	// batches it is the shared direct-leaf image ID. For heterogeneous
+	// parent batches it is the pinned policy digest.
+	leafContextDigest [32]byte
 
-	// journals holds the raw leaf journal bytes in batch order.
-	journals [][]byte
+	// records holds the ordered direct-child records hashed by the batch
+	// Merkle tree. For homogeneous batches these are raw leaf journals. For
+	// heterogeneous parents these are fixed-size direct-child envelopes.
+	records [][]byte
 
 	// assumptions holds the serialized succinct leaf receipts that the
 	// host supplies to the prover for recursive assumption resolution.
@@ -82,7 +87,7 @@ func NewBatchClaimFile(
 	receiptEncoding string,
 ) BatchClaimFile {
 
-	return BatchClaimFile{
+	claimFile := BatchClaimFile{
 		SchemaVersion:     1,
 		ImageID:           imageID,
 		BatchVersion:      claim.Version,
@@ -93,14 +98,27 @@ func NewBatchClaimFile(
 		MerkleHashKindName: batch.MerkleHashName(
 			claim.MerkleHashKind,
 		),
-		LeafCount:        claim.LeafCount,
-		LeafGuestImageID: hex.EncodeToString(claim.LeafGuestImageID[:]),
-		MerkleRoot:       hex.EncodeToString(claim.MerkleRoot[:]),
+		LeafCount: claim.LeafCount,
+		MerkleRoot: hex.EncodeToString(
+			claim.MerkleRoot[:],
+		),
 		JournalHex:       hex.EncodeToString(journal),
 		JournalSizeBytes: len(journal),
 		ProofSealBytes:   sealBytes,
 		ReceiptEncoding:  receiptEncoding,
 	}
+
+	if claim.UsesPolicyDigest() {
+		claimFile.PolicyDigest = hex.EncodeToString(
+			claim.LeafGuestImageID[:],
+		)
+	} else {
+		claimFile.LeafGuestImageID = hex.EncodeToString(
+			claim.LeafGuestImageID[:],
+		)
+	}
+
+	return claimFile
 }
 
 // ReadBatchClaimFile loads a previously written batch claim.json artifact.
@@ -254,6 +272,7 @@ func verifyBatchClaimFileMatches(
 		expected.MerkleHashKindName == verified.MerkleHashKindName &&
 		expected.LeafCount == verified.LeafCount &&
 		expected.LeafGuestImageID == verified.LeafGuestImageID &&
+		expected.PolicyDigest == verified.PolicyDigest &&
 		expected.MerkleRoot == verified.MerkleRoot &&
 		expected.JournalHex == verified.JournalHex &&
 		expected.JournalSizeBytes == verified.JournalSizeBytes &&
@@ -273,18 +292,20 @@ func verifyBatchClaimFileMatches(
 // guest reads from stdin. The wire format is:
 //
 //	[leaf_claim_kind:u32_le] [merkle_hash_kind:u32_le]
-//	[leaf_guest_image_id:32] [leaf_count:u32_le]
-//	[leaf_journal_0:*] [leaf_journal_1:*] ... [leaf_journal_N-1:*]
+//	[leaf_context_digest:32] [leaf_count:u32_le]
+//	[leaf_record_0:*] [leaf_record_1:*] ... [leaf_record_N-1:*]
 //
-// Each leaf journal must be exactly the fixed size for the given leaf kind.
-// The host passes these journals as private witness data; they never appear
-// in the batch receipt itself. The guest re-verifies each journal against its
-// corresponding succinct leaf receipt via zkvm.Verify.
+// Each direct-child record must be exactly the fixed size for the given batch
+// leaf kind. For homogeneous batches the records are raw direct-child
+// journals. For heterogeneous parents the records are fixed-size direct-child
+// envelopes. The host passes these records as private witness data; they never
+// appear directly in the batch receipt itself. The guest re-verifies each
+// direct child against its corresponding succinct receipt via zkvm.Verify.
 func buildBatchWitnessStdin(
-	leafClaimKind uint32, leafGuestImageID [32]byte, journals [][]byte,
+	leafClaimKind uint32, leafContextDigest [32]byte, records [][]byte,
 ) ([]byte, error) {
 
-	if len(journals) == 0 {
+	if len(records) == 0 {
 		return nil, errors.New(
 			"batch witness requires at least one leaf",
 		)
@@ -295,7 +316,7 @@ func buildBatchWitnessStdin(
 		return nil, err
 	}
 
-	totalBytes := 4 + 4 + 32 + 4 + len(journals)*expectedLeafSize
+	totalBytes := 4 + 4 + 32 + 4 + len(records)*expectedLeafSize
 	var stdin bytes.Buffer
 	stdin.Grow(totalBytes)
 
@@ -312,28 +333,28 @@ func buildBatchWitnessStdin(
 		}
 	}
 
-	if _, err := stdin.Write(leafGuestImageID[:]); err != nil {
-		return nil, fmt.Errorf("write leaf guest image ID: %w", err)
+	if _, err := stdin.Write(leafContextDigest[:]); err != nil {
+		return nil, fmt.Errorf("write leaf context digest: %w", err)
 	}
 	if err := binary.Write(
-		&stdin, binary.LittleEndian, uint32(len(journals)),
+		&stdin, binary.LittleEndian, uint32(len(records)),
 	); err != nil {
 		return nil, fmt.Errorf("write batch leaf count: %w", err)
 	}
 
-	for idx, journal := range journals {
-		if len(journal) != expectedLeafSize {
+	for idx, record := range records {
+		if len(record) != expectedLeafSize {
 			return nil, fmt.Errorf(
-				"leaf %d journal size mismatch: got %d, want "+
+				"leaf %d record size mismatch: got %d, want "+
 					"%d",
 				idx,
-				len(journal),
+				len(record),
 				expectedLeafSize,
 			)
 		}
-		if _, err := stdin.Write(journal); err != nil {
+		if _, err := stdin.Write(record); err != nil {
 			return nil, fmt.Errorf(
-				"write leaf %d journal: %w", idx, err,
+				"write leaf %d record: %w", idx, err,
 			)
 		}
 	}
@@ -372,13 +393,16 @@ func (r *Runner) loadBatchLeaves(
 	}
 
 	result := &loadedBatchLeaves{
-		journals:    make([][]byte, 0, len(inputs)),
+		records:     make([][]byte, 0, len(inputs)),
 		assumptions: make([]zkvmhost.AssumptionReceipt, 0, len(inputs)),
 	}
 
-	// imageIDHex is the first leaf's image ID; all subsequent leaves
-	// must share the same value.
+	// imageIDHex is the first leaf's image ID in homogeneous mode; all
+	// subsequent leaves must share the same value.
 	var imageIDHex string
+	if leafClaimKind == BatchLeafKindHeterogeneousEnvelopeV1 {
+		result.leafContextDigest = batch.HeterogeneousPolicyDigestV1()
+	}
 
 	// For batch_claim_v1 leaves, we enforce that every child batch
 	// claim shares the same subtree policy. The first leaf pins the
@@ -410,50 +434,129 @@ func (r *Runner) loadBatchLeaves(
 				"decode leaf %d journal hex: %w", idx, err,
 			)
 		}
-		if len(journal) != expectedLeafSize {
-			return nil, fmt.Errorf(
-				"leaf %d journal size mismatch: got %d, want "+
-					"%d",
-				idx,
-				len(journal),
-				expectedLeafSize,
-			)
-		}
 
-		// When batching child batch claims (nested hierarchy), enforce
-		// that every child was built with the same guest binary, leaf
-		// schema, hash algorithm, and policy flags. Without this check
-		// the parent could silently aggregate heterogeneous subtrees.
-		if leafClaimKind == BatchLeafKindBatchClaimV1 {
-			childPolicy, err := decodeChildBatchPolicyHost(
-				journal,
+		if leafClaimKind == BatchLeafKindHeterogeneousEnvelopeV1 {
+			if input.DirectLeafKind == 0 {
+				return nil, fmt.Errorf(
+					"heterogeneous leaf %d is missing "+
+						"direct leaf kind",
+					idx,
+				)
+			}
+			if !batch.IsAllowedHeterogeneousDirectLeafKindV1(
+				input.DirectLeafKind,
+			) {
+
+				return nil, fmt.Errorf(
+					"heterogeneous leaf %d uses "+
+						"unsupported "+
+						"direct leaf kind %d",
+					idx,
+					input.DirectLeafKind,
+				)
+			}
+
+			childImageID, err := decodeHexArray32(
+				fmt.Sprintf(
+					"heterogeneous leaf %d image ID",
+					idx,
+				),
+				claimFile.ImageID,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			envelope, err := batch.NewHeterogeneousEnvelopeV1(
+				input.DirectLeafKind, childImageID, journal,
 			)
 			if err != nil {
 				return nil, fmt.Errorf(
-					"decode child batch claim %d: %w",
+					"build heterogeneous envelope %d: %w",
+					idx, err,
+				)
+			}
+			encoded := envelope.Encode()
+			result.records = append(
+				result.records,
+				append([]byte(nil), encoded[:]...),
+			)
+		} else {
+			if len(journal) != expectedLeafSize {
+				return nil, fmt.Errorf(
+					"leaf %d journal size mismatch: "+
+						"got %d, "+
+						"want %d",
 					idx,
-					err,
+					len(journal),
+					expectedLeafSize,
 				)
 			}
 
-			if !childPolicySet {
-				expectedChildPolicy = childPolicy
-				childPolicySet = true
-			} else {
-				samePolicy := sameChildBatchPolicy(
-					expectedChildPolicy,
-					childPolicy,
+			// When batching child batch claims (nested
+			// hierarchy), enforce that every child was built
+			// with the same guest binary, leaf schema, hash
+			// algorithm, and policy flags. Without this check
+			// the parent could silently aggregate
+			// heterogeneous subtrees.
+			if leafClaimKind == BatchLeafKindBatchClaimV1 {
+				childPolicy, err := decodeChildBatchPolicyHost(
+					journal,
 				)
-				if !samePolicy {
+				if err != nil {
 					return nil, fmt.Errorf(
-						"child batch claim %d does "+
-							"not match the pinned "+
-							"child subtree "+
-							"policy",
+						"decode child batch claim %d: "+
+							"%w",
 						idx,
+						err,
 					)
 				}
+
+				if !childPolicySet {
+					expectedChildPolicy = childPolicy
+					childPolicySet = true
+				} else {
+					samePolicy := sameChildBatchPolicy(
+						expectedChildPolicy,
+						childPolicy,
+					)
+					if !samePolicy {
+						return nil, fmt.Errorf(
+							"child batch claim %d "+
+								"does not "+
+								"match the "+
+								"pinned "+
+								"child "+
+								"subtree "+
+								"policy",
+							idx,
+						)
+					}
+				}
 			}
+
+			if imageIDHex == "" {
+				imageIDHex = claimFile.ImageID
+				decodedImageID, err := decodeHexArray32(
+					"leaf image ID", imageIDHex,
+				)
+				if err != nil {
+					return nil, err
+				}
+				result.leafContextDigest = decodedImageID
+			} else if claimFile.ImageID != imageIDHex {
+				return nil, fmt.Errorf(
+					"leaf %d image ID mismatch: got %s, "+
+						"want %s",
+					idx,
+					claimFile.ImageID,
+					imageIDHex,
+				)
+			}
+
+			result.records = append(
+				result.records, append([]byte(nil), journal...),
+			)
 		}
 
 		receiptBytes, err := os.ReadFile(input.ReceiptPath)
@@ -464,29 +567,13 @@ func (r *Runner) loadBatchLeaves(
 			)
 		}
 
-		if imageIDHex == "" {
-			imageIDHex = claimFile.ImageID
-			decodedImageID, err := decodeHexArray32(
-				"leaf image ID", imageIDHex,
-			)
-			if err != nil {
-				return nil, err
-			}
-			result.leafGuestImageID = decodedImageID
-		} else if claimFile.ImageID != imageIDHex {
-			return nil, fmt.Errorf(
-				"leaf %d image ID mismatch: got %s, want %s",
-				idx, claimFile.ImageID, imageIDHex,
-			)
-		}
-
 		// Host-side receipt verification: confirm the leaf receipt is
 		// valid for this image ID and journal before we pass it to the
 		// guest as an assumption. This catches corrupt or mismatched
 		// receipts early rather than failing inside the prover.
 		verifyResult, err := r.client.Verify(zkvmhost.VerifyRequest{
 			Receipt:         receiptBytes,
-			ImageID:         imageIDHex,
+			ImageID:         claimFile.ImageID,
 			ExpectedJournal: journal,
 		})
 		if err != nil {
@@ -505,7 +592,6 @@ func (r *Runner) loadBatchLeaves(
 			)
 		}
 
-		result.journals = append(result.journals, journal)
 		result.assumptions = append(
 			result.assumptions,
 			zkvmhost.AssumptionReceipt(receiptBytes),
@@ -591,6 +677,41 @@ func verifyBatchInclusionProof(
 	if err != nil {
 		return fmt.Errorf("decode inclusion leaf journal: %w", err)
 	}
+	if claim.LeafClaimKind == BatchLeafKindHeterogeneousEnvelopeV1 {
+		envelope, err := batch.DecodeHeterogeneousEnvelopeV1(
+			leafJournal,
+		)
+		if err != nil {
+			return fmt.Errorf(
+				"decode heterogeneous inclusion envelope: %w",
+				err,
+			)
+		}
+		if inclusion.DirectLeafKind != 0 &&
+			inclusion.DirectLeafKind != envelope.DirectLeafKind {
+
+			return fmt.Errorf(
+				"inclusion direct leaf kind mismatch: "+
+					"got %d, want %d",
+				inclusion.DirectLeafKind,
+				envelope.DirectLeafKind,
+			)
+		}
+		if inclusion.DirectLeafImageID != "" {
+			imageIDHex := hex.EncodeToString(
+				envelope.VerifyImageID[:],
+			)
+			if inclusion.DirectLeafImageID != imageIDHex {
+				return fmt.Errorf(
+					"inclusion direct leaf "+
+						"image mismatch: got %s, "+
+						"want %s",
+					inclusion.DirectLeafImageID,
+					imageIDHex,
+				)
+			}
+		}
+	}
 
 	siblings := make([][32]byte, 0, len(inclusion.Siblings))
 	for idx, siblingHex := range inclusion.Siblings {
@@ -650,28 +771,30 @@ func VerifyBatchInclusionChain(
 			break
 		}
 
-		if currentClaim.LeafClaimKind != BatchLeafKindBatchClaimV1 {
+		nextClaim, ok, err := decodeNextNestedBatchClaim(
+			currentClaim, inclusion,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"decode nested batch claim "+
+					"from inclusion %d: %w",
+				idx, err,
+			)
+		}
+		if !ok {
 			return nil, fmt.Errorf(
 				"inclusion proof %d reached non-batch leaf "+
 					"kind %s before the final level",
 				idx,
-				batch.LeafKindName(currentClaim.LeafClaimKind),
+				describeNestedDirectLeafKind(
+					currentClaim,
+					inclusion,
+				),
 			)
 		}
 
-		childClaim, err := decodeNestedBatchClaim(
-			inclusion.LeafJournalHex,
-		)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"decode nested batch claim from inclusion "+
-					"%d: %w",
-				idx, err,
-			)
-		}
-
-		nestedClaims = append(nestedClaims, childClaim)
-		currentClaim = childClaim
+		nestedClaims = append(nestedClaims, nextClaim)
+		currentClaim = nextClaim
 	}
 
 	return nestedClaims, nil
@@ -750,6 +873,70 @@ func decodeNestedBatchClaim(journalHex string) (batch.Claim, error) {
 	}
 
 	return claim, nil
+}
+
+// decodeNextNestedBatchClaim recovers the next nested batch claim from one
+// verified inclusion proof. Homogeneous `batch_claim_v1` parents decode the
+// disclosed leaf journal directly. Heterogeneous parents first decode the
+// direct-child envelope and only continue if the disclosed child itself is a
+// `batch_claim_v1`.
+func decodeNextNestedBatchClaim(
+	currentClaim batch.Claim, inclusion BatchInclusionProofFile,
+) (batch.Claim, bool, error) {
+
+	switch currentClaim.LeafClaimKind {
+	case BatchLeafKindBatchClaimV1:
+		claim, err := decodeNestedBatchClaim(
+			inclusion.LeafJournalHex,
+		)
+		return claim, true, err
+
+	case BatchLeafKindHeterogeneousEnvelopeV1:
+		record, err := hex.DecodeString(inclusion.LeafJournalHex)
+		if err != nil {
+			return batch.Claim{}, false, fmt.Errorf(
+				"decode heterogeneous leaf record hex: %w",
+				err,
+			)
+		}
+		envelope, err := batch.DecodeHeterogeneousEnvelopeV1(record)
+		if err != nil {
+			return batch.Claim{}, false, err
+		}
+		if envelope.DirectLeafKind != BatchLeafKindBatchClaimV1 {
+			return batch.Claim{}, false, nil
+		}
+
+		claim, err := batch.Decode(envelope.JournalBytes())
+		return claim, true, err
+
+	default:
+		return batch.Claim{}, false, nil
+	}
+}
+
+// describeNestedDirectLeafKind returns the leaf-kind label that caused a
+// nested inclusion chain to stop early. For heterogeneous parents this is the
+// disclosed direct child kind inside the envelope; otherwise it is the batch's
+// pinned homogeneous leaf kind.
+func describeNestedDirectLeafKind(
+	currentClaim batch.Claim, inclusion BatchInclusionProofFile,
+) string {
+
+	if currentClaim.LeafClaimKind != BatchLeafKindHeterogeneousEnvelopeV1 {
+		return batch.LeafKindName(currentClaim.LeafClaimKind)
+	}
+
+	record, err := hex.DecodeString(inclusion.LeafJournalHex)
+	if err != nil {
+		return batch.LeafKindName(currentClaim.LeafClaimKind)
+	}
+	envelope, err := batch.DecodeHeterogeneousEnvelopeV1(record)
+	if err != nil {
+		return batch.LeafKindName(currentClaim.LeafClaimKind)
+	}
+
+	return batch.LeafKindName(envelope.DirectLeafKind)
 }
 
 // decodeChildBatchPolicyHost extracts the policy-relevant fields from a

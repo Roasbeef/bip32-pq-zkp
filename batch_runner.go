@@ -44,7 +44,7 @@ func (r *Runner) ExecuteBatch(
 	}
 
 	stdin, err := buildBatchWitnessStdin(
-		cfg.LeafClaimKind, leaves.leafGuestImageID, leaves.journals,
+		cfg.LeafClaimKind, leaves.leafContextDigest, leaves.records,
 	)
 	if err != nil {
 		return nil, err
@@ -61,6 +61,9 @@ func (r *Runner) ExecuteBatch(
 
 	claim, err := DecodeBatchClaim(result.Journal)
 	if err != nil {
+		return nil, err
+	}
+	if err := claim.ValidateVersion(); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +107,7 @@ func (r *Runner) ProveBatch(
 	}
 
 	stdin, err := buildBatchWitnessStdin(
-		cfg.LeafClaimKind, leaves.leafGuestImageID, leaves.journals,
+		cfg.LeafClaimKind, leaves.leafContextDigest, leaves.records,
 	)
 	if err != nil {
 		return nil, err
@@ -126,11 +129,8 @@ func (r *Runner) ProveBatch(
 	if err != nil {
 		return nil, err
 	}
-	if claim.Version != batch.Version {
-		return nil, fmt.Errorf(
-			"unexpected batch claim version: got %d, want %d",
-			claim.Version, batch.Version,
-		)
+	if err := claim.ValidateVersion(); err != nil {
+		return nil, err
 	}
 
 	claimFile := NewBatchClaimFile(
@@ -202,6 +202,9 @@ func (r *Runner) VerifyBatch(
 	if err != nil {
 		return nil, err
 	}
+	if err := claim.ValidateVersion(); err != nil {
+		return nil, err
+	}
 
 	verifiedClaim := NewBatchClaimFile(
 		imageID, claim, result.Journal, result.SealBytes,
@@ -270,7 +273,7 @@ func (r *Runner) DeriveBatchInclusionProof(
 	}
 
 	proof, root, err := batch.BuildProof(
-		leaves.journals, int(cfg.LeafIndex), sumSHA256Host,
+		leaves.records, int(cfg.LeafIndex), sumSHA256Host,
 	)
 	if err != nil {
 		return nil, err
@@ -288,6 +291,24 @@ func (r *Runner) DeriveBatchInclusionProof(
 		LeafCount:      proof.LeafCount,
 		LeafJournalHex: hexString(proof.LeafClaim),
 		Siblings:       encodeDigestHexList(proof.Siblings),
+	}
+	if cfg.LeafClaimKind == BatchLeafKindHeterogeneousEnvelopeV1 {
+		envelope, err := batch.DecodeHeterogeneousEnvelopeV1(
+			proof.LeafClaim,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"decode heterogeneous inclusion envelope: %w",
+				err,
+			)
+		}
+		proofFile.DirectLeafKind = envelope.DirectLeafKind
+		proofFile.DirectLeafKindName = batch.LeafKindName(
+			envelope.DirectLeafKind,
+		)
+		proofFile.DirectLeafImageID = hexString(
+			envelope.VerifyImageID[:],
+		)
 	}
 	if err := WriteBatchInclusionProofFile(
 		cfg.OutputPath, proofFile,
