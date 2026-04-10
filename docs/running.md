@@ -10,6 +10,8 @@ demo-specific UX across all three proof lanes:
   `verify-hardened-xpub`
 - Hardened xpriv: `execute-hardened-xpriv`, `prove-hardened-xpriv`,
   `verify-hardened-xpriv`
+- Batch aggregation: `execute-batch`, `prove-batch`, `verify-batch`,
+  `derive-batch-inclusion`
 
 ## Expected Sibling Layout
 
@@ -78,6 +80,14 @@ variable aliases that map to the uppercase forms.
 - `RECEIPT_KIND` or `receipt_kind`
 - `RECEIPT`
 - `CLAIM`
+- `BATCH_LEAF_KIND`
+- `BATCH_LEAF_CLAIMS`
+- `BATCH_LEAF_RECEIPTS`
+- `BATCH_RECEIPT`
+- `BATCH_CLAIM`
+- `BATCH_INCLUSION`
+- `BATCH_INCLUSION_OUT`
+- `BATCH_LEAF_INDEX`
 
 Variable roles:
 
@@ -220,6 +230,75 @@ Policy note:
 - opting out changes the public claim policy bit, not the host/image model
 - `RECEIPT_KIND` changes only the receipt representation, not the public claim
   semantics
+
+## Batch Aggregation
+
+The batch guest consumes existing succinct leaf receipts as assumptions,
+verifies them inside one aggregation guest, and commits only a fixed-size
+batch claim:
+
+- `leaf_claim_kind`
+- `leaf_guest_image_id`
+- `leaf_count`
+- `merkle_root`
+
+The default batch Makefile lane uses the hardened-xpriv leaf schema and two
+copies of the existing succinct hardened-xpriv leaf artifacts:
+
+```bash
+make execute-batch GO_GOROOT=/path/to/go1.24.4
+make prove-batch GO_GOROOT=/path/to/go1.24.4
+make derive-batch-inclusion GO_GOROOT=/path/to/go1.24.4
+make verify-batch GO_GOROOT=/path/to/go1.24.4 \
+  BATCH_INCLUSION=./artifacts/hardened-xpriv-batch.inclusion.json
+```
+
+That writes:
+
+- batch receipt: `./artifacts/hardened-xpriv-batch.receipt`
+- batch claim: `./artifacts/hardened-xpriv-batch.claim.json`
+- sparse inclusion proof:
+  `./artifacts/hardened-xpriv-batch.inclusion.json`
+
+To request a succinct final batch receipt instead:
+
+```bash
+make prove-batch GO_GOROOT=/path/to/go1.24.4 \
+  RECEIPT_KIND=succinct \
+  BATCH_RECEIPT=./artifacts/hardened-xpriv-batch-succinct.receipt \
+  BATCH_CLAIM=./artifacts/hardened-xpriv-batch-succinct.claim.json
+```
+
+To reuse the same batch guest with the original full Taproot leaf claim,
+override the leaf inputs with existing succinct Taproot leaf artifacts:
+
+```bash
+make prove-batch GO_GOROOT=/path/to/go1.24.4 \
+  BATCH_LEAF_KIND=taproot \
+  BATCH_LEAF_CLAIMS="./artifacts/bip32-succinct.claim.json ./artifacts/bip32-succinct.claim.json" \
+  BATCH_LEAF_RECEIPTS="./artifacts/bip32-succinct.receipt ./artifacts/bip32-succinct.receipt" \
+  BATCH_RECEIPT=./artifacts/taproot-batch.receipt \
+  BATCH_CLAIM=./artifacts/taproot-batch.claim.json
+```
+
+Current validated batch measurements for the two-leaf hardened-xpriv demo:
+
+- batch guest image ID:
+  - `be640787a044075b250a09002bb4f1e0000723cd0757e49160ce5b7b030623f7`
+- leaf guest image ID:
+  - `8401a36e4f54cb2beaf9ac7677603806cf9d775e90ef5a70168045a3c0df0849`
+- batch Merkle root:
+  - `0a0a1d7c7baf543b60321fb0303a4a70d46a6ba8371399110d1affb43efc03c0`
+- composite batch receipt:
+  - seal `679904` bytes
+  - receipt file `681214` bytes
+- succinct batch receipt:
+  - seal `222668` bytes
+  - receipt file `223343` bytes
+- batch claim JSON:
+  - `755` bytes
+- batch inclusion proof JSON:
+  - `456` bytes
 
 Compatibility notes for verifiers:
 

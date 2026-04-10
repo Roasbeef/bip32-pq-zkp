@@ -102,20 +102,24 @@ and guest plumbing. It contains:
 
 - minimal BIP-32 derivation helpers and `ExtendedPrivateKey` type (`bip32/`)
 - BIP-86 Taproot output-key derivation helpers
-- three TinyGo guest programs:
+- four TinyGo guest programs:
   - full Taproot lane (`guest/`): seed + full path to Taproot output key
   - hardened-xpub lane (`guest_hardened_xpub/`): parent xpriv to child
     compressed pubkey
   - hardened-xpriv lane (`guest_hardened_xpriv/`): single hardened CKDpriv
     step, no EC point multiplication
-- a demo-specific Go host CLI with nine subcommands for all three lanes
-  (`cmd/bip32-pq-zkp-host/`)
+  - batch aggregation guest (`guest_batch/`): recursive composition over N
+    leaf receipts into one Merkle-root batch claim
+- batch claim and Merkle tree primitives (`batchclaim/`)
+- a demo-specific Go host CLI with thirteen subcommands across all four
+  lanes (`cmd/bip32-pq-zkp-host/`)
 - host-side reference tests against `btcd/txscript` and `btcd/hdkeychain`
   (`hostcheck/`)
 - the root-level `bip32pqzkp` Go package providing `Runner`,
-  `BuildWitnessStdin`, `DecodePublicClaim`, and claim-file helpers for all
-  three lanes
-- claim specification and runbook documentation (`docs/`)
+  `BuildWitnessStdin`, `DecodePublicClaim`, batch runners, and claim-file
+  helpers for all lanes
+- claim specification, aggregation design, and runbook documentation
+  (`docs/`)
 
 The reusable guest packaging, proving, and verification boundary lives in
 the sibling [`go-zkvm`](https://github.com/roasbeef/go-zkvm) repo.
@@ -243,7 +247,8 @@ composite receipt is already close to the succinct size floor.
 
 The hardened-xpriv variant is the most efficient: ~2 seconds to prove, ~235 KB
 composite receipt, and only 3.14 GB peak RAM (vs 11.9 GB for the full lane).
-It is the natural leaf proof for future batch aggregation.
+It is the natural first leaf proof for the current batch-aggregation
+prototype.
 
 All three lanes share the same BIP-32 derivation core (`bip32/`) and the same
 host plumbing pattern. See `docs/reduced-variants.md` for full benchmarks,
@@ -257,6 +262,44 @@ make prove-hardened-xpriv GO_GOROOT=/path/to/go1.24.4
 make verify-hardened-xpriv GO_GOROOT=/path/to/go1.24.4
 ```
 
+## Batch Aggregation
+
+The batch aggregation prototype uses risc0's recursive composition to verify
+N leaf receipts inside one aggregation guest and commit a single Merkle root.
+The result is one final receipt that proves: "there exist N valid leaf
+receipts, all from the same guest image, whose ordered journals hash to
+this root."
+
+The batch guest supports both hardened-xpriv and full Taproot leaf schemas.
+Verifiers can either verify the batch receipt alone or check one disclosed
+leaf via an ordinary Merkle inclusion proof generated outside the guest.
+
+Current two-leaf hardened-xpriv batch results:
+
+| Metric | Composite | Succinct |
+|--------|-----------|----------|
+| Batch proof seal | 679,904 B | 222,668 B |
+| Batch receipt on disk | 681,214 B | 223,343 B |
+| Batch claim.json | 755 B | 755 B |
+| Inclusion proof | 456 B | 456 B |
+
+The succinct batch receipt stays at the same ~222 KB floor as single-leaf
+succinct receipts. The fan-out lives in the Merkle inclusion layer, not the
+receipt layer.
+
+Quick start:
+
+```bash
+make prove-hardened-xpriv GO_GOROOT=/path/to/go1.24.4 RECEIPT_KIND=succinct
+make prove-batch GO_GOROOT=/path/to/go1.24.4
+make derive-batch-inclusion GO_GOROOT=/path/to/go1.24.4
+make verify-batch GO_GOROOT=/path/to/go1.24.4 \
+  BATCH_INCLUSION=./artifacts/hardened-xpriv-batch.inclusion.json
+```
+
+See `docs/aggregation-design.md` for the full architecture and
+`docs/running.md` for all batch Makefile targets and variables.
+
 ## Policy
 
 The full Taproot demo lane defaults to BIP-86 path enforcement, but callers
@@ -267,12 +310,19 @@ images with their own image IDs.
 
 ## Future Work
 
-The current proof binds the seed to a Taproot output key but does not yet
-bind the proof to a specific spending transaction. A production deployment
-would need to commit to the BIP-341 sighash digest inside the proof so that
-the receipt cannot be replayed to authorize a different spend. That is the
-natural next step toward a consensus-ready migration rule. See
-`docs/claim.md` for a detailed v2 claim sketch.
+The current proofs bind the seed to a derived key but do not yet bind the
+proof to a specific spending transaction. A production deployment would need
+to commit to the BIP-341 sighash digest inside the proof so that the receipt
+cannot be replayed to authorize a different spend. That is the natural next
+step toward a consensus-ready migration rule. See `docs/claim.md` for a
+detailed v2 claim sketch.
+
+Other open directions:
+
+- scaling experiments at larger N for the batch aggregation lane
+- deciding whether the disclosed batch leaf format should remain
+  hardened-xpriv or move to xpub/full-Taproot for privacy
+- spend-bound leaf claims that include outpoint or sighash binding
 
 ## Documentation
 
@@ -280,3 +330,4 @@ natural next step toward a consensus-ready migration rule. See
 - `docs/claim.md`: claim specification and v2 sketch
 - `docs/running.md`: build, execute, prove, and verify commands
 - `docs/reduced-variants.md`: side-by-side comparison of all three proof lanes
+- `docs/aggregation-design.md`: recursive batch aggregation architecture

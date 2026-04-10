@@ -14,10 +14,13 @@ Start with `../doc.go` for the package-level overview, then:
 4. `reduced-variants.md`
    - side-by-side comparison of the full Taproot proof and the two reduced
      hardened-derivation variants
-5. `code-format.md`
+5. `aggregation-design.md`
+   - recursive batch aggregation design, the implemented v1 prototype,
+     Merkle-root claims, and sparse verification
+6. `code-format.md`
    - the commenting, stanza, and readability rules used for the Go code in
      this repo
-6. `../progress.md`
+7. `../progress.md`
    - repo-local working log and major findings
 
 ## Core Claim
