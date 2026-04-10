@@ -62,6 +62,28 @@ func TestVerifyBatchInclusionChainRejectsPrematureNonBatchLeaf(t *testing.T) {
 	}
 }
 
+func TestVerifyBatchInclusionChainSupportsHeterogeneousParent(t *testing.T) {
+	t.Parallel()
+
+	rootClaim, proofs, expectedChildClaim :=
+		buildNestedHeterogeneousFixture(t)
+
+	nestedClaims, err := VerifyBatchInclusionChain(rootClaim, proofs)
+	if err != nil {
+		t.Fatalf("VerifyBatchInclusionChain failed: %v", err)
+	}
+	if len(nestedClaims) != 1 {
+		t.Fatalf("got %d nested claims, want 1", len(nestedClaims))
+	}
+	if nestedClaims[0].MerkleRoot != expectedChildClaim.MerkleRoot {
+		t.Fatalf(
+			"nested claim Merkle root = %x, want %x",
+			nestedClaims[0].MerkleRoot,
+			expectedChildClaim.MerkleRoot,
+		)
+	}
+}
+
 func TestLoadBatchInclusionProofsFromBundledChain(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +230,83 @@ func buildNestedBatchFixture(
 	}
 
 	return parentClaim, proofs, childB
+}
+
+func buildNestedHeterogeneousFixture(
+	t *testing.T,
+) (batch.Claim, []BatchInclusionProofFile, batch.Claim) {
+
+	t.Helper()
+
+	rootClaim, proofs, expectedChildClaim := buildNestedBatchFixture(t)
+	childEnvelope, err := batch.NewHeterogeneousEnvelopeV1(
+		batch.LeafKindBatchClaimV1,
+		repeatedDigest(0xbb),
+		func() []byte {
+			encoded := expectedChildClaim.Encode()
+			return encoded[:]
+		}(),
+	)
+	if err != nil {
+		t.Fatalf("NewHeterogeneousEnvelopeV1 failed: %v", err)
+	}
+	rawEnvelope, err := batch.NewHeterogeneousEnvelopeV1(
+		batch.LeafKindHardenedXPriv,
+		repeatedDigest(0xaa),
+		repeatedLeaf(0x55, 72),
+	)
+	if err != nil {
+		t.Fatalf("NewHeterogeneousEnvelopeV1 failed: %v", err)
+	}
+
+	childEnvelopeBytes := childEnvelope.Encode()
+	rawEnvelopeBytes := rawEnvelope.Encode()
+	parentLeaves := [][]byte{rawEnvelopeBytes[:], childEnvelopeBytes[:]}
+	parentRoot, err := batch.Root(parentLeaves, sumSHA256Host)
+	if err != nil {
+		t.Fatalf("Root failed: %v", err)
+	}
+
+	heterogeneousParent := batch.Claim{
+		Version:          batch.VersionHeterogeneousParent,
+		Flags:            batch.FlagsNone,
+		LeafClaimKind:    batch.LeafKindHeterogeneousEnvelopeV1,
+		MerkleHashKind:   batch.MerkleHashSHA256,
+		LeafCount:        2,
+		LeafGuestImageID: batch.HeterogeneousPolicyDigestV1(),
+		MerkleRoot:       parentRoot,
+	}
+
+	parentProof, _, err := batch.BuildProof(parentLeaves, 1, sumSHA256Host)
+	if err != nil {
+		t.Fatalf("BuildProof(parent hetero) failed: %v", err)
+	}
+
+	proofs[0] = BatchInclusionProofFile{
+		SchemaVersion: 1,
+		LeafClaimKind: batch.LeafKindHeterogeneousEnvelopeV1,
+		LeafClaimKindName: batch.LeafKindName(
+			batch.LeafKindHeterogeneousEnvelopeV1,
+		),
+		MerkleHashKind: batch.MerkleHashSHA256,
+		MerkleHashKindName: batch.MerkleHashName(
+			batch.MerkleHashSHA256,
+		),
+		LeafIndex:      parentProof.LeafIndex,
+		LeafCount:      parentProof.LeafCount,
+		LeafJournalHex: hex.EncodeToString(parentProof.LeafClaim),
+		DirectLeafKind: batch.LeafKindBatchClaimV1,
+		DirectLeafKindName: batch.LeafKindName(
+			batch.LeafKindBatchClaimV1,
+		),
+		DirectLeafImageID: hex.EncodeToString(
+			childEnvelope.VerifyImageID[:],
+		),
+		Siblings: encodeDigestHexList(parentProof.Siblings),
+	}
+
+	_ = rootClaim
+	return heterogeneousParent, proofs, expectedChildClaim
 }
 
 // buildBatchClaim is a test helper that constructs a batch.Claim from raw
