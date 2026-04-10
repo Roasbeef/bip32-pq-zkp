@@ -17,6 +17,10 @@ func TestLeafKindName(t *testing.T) {
 		{kind: LeafKindTaproot, name: "taproot"},
 		{kind: LeafKindHardenedXPriv, name: "hardened_xpriv"},
 		{kind: LeafKindBatchClaimV1, name: "batch_claim_v1"},
+		{
+			kind: LeafKindHeterogeneousEnvelopeV1,
+			name: "heterogeneous_envelope_v1",
+		},
 	}
 
 	for _, test := range tests {
@@ -42,6 +46,11 @@ func TestLeafClaimSize(t *testing.T) {
 		{kind: LeafKindTaproot, size: 72, ok: true},
 		{kind: LeafKindHardenedXPriv, size: 72, ok: true},
 		{kind: LeafKindBatchClaimV1, size: PublicClaimSize, ok: true},
+		{
+			kind: LeafKindHeterogeneousEnvelopeV1,
+			size: HeterogeneousEnvelopeSizeV1,
+			ok:   true,
+		},
 		{kind: 99, size: 0, ok: false},
 	}
 
@@ -63,5 +72,58 @@ func TestLeafClaimSize(t *testing.T) {
 				test.size,
 			)
 		}
+	}
+}
+
+func TestHeterogeneousEnvelopeRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	imageID := [32]byte{1, 2, 3}
+	journal := make([]byte, PublicClaimSize)
+	for i := range journal {
+		journal[i] = byte(i)
+	}
+
+	envelope, err := NewHeterogeneousEnvelopeV1(
+		LeafKindBatchClaimV1, imageID, journal,
+	)
+	if err != nil {
+		t.Fatalf("NewHeterogeneousEnvelopeV1 failed: %v", err)
+	}
+
+	decoded, err := DecodeHeterogeneousEnvelopeV1(
+		func() []byte {
+			encoded := envelope.Encode()
+			return encoded[:]
+		}(),
+	)
+	if err != nil {
+		t.Fatalf("DecodeHeterogeneousEnvelopeV1 failed: %v", err)
+	}
+
+	if decoded.DirectLeafKind != LeafKindBatchClaimV1 {
+		t.Fatalf(
+			"DirectLeafKind = %d, want %d",
+			decoded.DirectLeafKind, LeafKindBatchClaimV1,
+		)
+	}
+	if decoded.VerifyImageID != imageID {
+		t.Fatalf(
+			"VerifyImageID = %x, want %x",
+			decoded.VerifyImageID, imageID,
+		)
+	}
+	if got := decoded.JournalBytes(); string(got) != string(journal) {
+		t.Fatalf("JournalBytes mismatch")
+	}
+}
+
+func TestHeterogeneousPolicyDigestV1Stable(t *testing.T) {
+	t.Parallel()
+
+	digestA := HeterogeneousPolicyDigestV1()
+	digestB := HeterogeneousPolicyDigestV1()
+	if digestA != digestB {
+		t.Fatalf("policy digest should be stable")
 	}
 }

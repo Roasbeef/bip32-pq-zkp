@@ -11,6 +11,7 @@
 package batchclaim
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 )
@@ -18,6 +19,11 @@ import (
 const (
 	// Version is the current serialized batch-claim format version.
 	Version = 1
+
+	// VersionHeterogeneousParent is the serialized batch-claim version used
+	// when the direct children are heterogeneous envelopes rather than one
+	// homogeneous raw journal kind.
+	VersionHeterogeneousParent = 2
 
 	// FlagsNone is the zero-value batch policy bitfield for the
 	// first version.
@@ -41,6 +47,12 @@ const (
 	// LeafKindBatchClaimV1 identifies one serialized v1 batch claim used as
 	// a leaf inside a higher-level parent batch.
 	LeafKindBatchClaimV1 = 3
+
+	// LeafKindHeterogeneousEnvelopeV1 identifies one fixed-size
+	// direct-child
+	// envelope that can mix raw leaves and nested batch claims
+	// within the same parent batch.
+	LeafKindHeterogeneousEnvelopeV1 = 4
 
 	// PublicClaimSize is the serialized size of Claim in bytes:
 	// 4 (version) + 4 (flags) + 4 (leaf kind) + 4 (merkle hash kind) +
@@ -69,8 +81,11 @@ type Claim struct {
 	// LeafCount is the number of leaves committed under the Merkle root.
 	LeafCount uint32
 
-	// LeafGuestImageID is the common leaf guest image ID pinned
-	// for the batch.
+	// LeafGuestImageID is the common leaf guest image ID pinned for
+	// homogeneous v1 batches. For heterogeneous parent batches
+	// (`VersionHeterogeneousParent` +
+	// `LeafKindHeterogeneousEnvelopeV1`) the same 32-byte slot
+	// carries the pinned policy digest instead.
 	LeafGuestImageID [32]byte
 
 	// MerkleRoot commits to the ordered batch leaf set.
@@ -110,6 +125,24 @@ func Decode(journal []byte) (Claim, error) {
 	return claim, nil
 }
 
+// ValidateVersion reports whether the claim version matches the expected
+// schema for its direct leaf mode.
+func (c Claim) ValidateVersion() error {
+	expected := uint32(Version)
+	if c.UsesPolicyDigest() {
+		expected = uint32(VersionHeterogeneousParent)
+	}
+	if c.Version != expected {
+		return fmt.Errorf(
+			"unexpected batch claim version: got %d, want %d",
+			c.Version,
+			expected,
+		)
+	}
+
+	return nil
+}
+
 // LeafKindName returns a readable label for the leaf claim kind.
 func LeafKindName(kind uint32) string {
 	switch kind {
@@ -119,6 +152,9 @@ func LeafKindName(kind uint32) string {
 		return "hardened_xpriv"
 	case LeafKindBatchClaimV1:
 		return "batch_claim_v1"
+
+	case LeafKindHeterogeneousEnvelopeV1:
+		return "heterogeneous_envelope_v1"
 	default:
 		return "unknown"
 	}
@@ -133,6 +169,9 @@ func LeafClaimSize(kind uint32) (int, bool) {
 	case LeafKindBatchClaimV1:
 		return PublicClaimSize, true
 
+	case LeafKindHeterogeneousEnvelopeV1:
+		return HeterogeneousEnvelopeSizeV1, true
+
 	default:
 		return 0, false
 	}
@@ -146,4 +185,32 @@ func MerkleHashName(kind uint32) string {
 	default:
 		return "unknown"
 	}
+}
+
+// UsesPolicyDigest reports whether the 32-byte context field in the claim is
+// interpreted as a policy digest rather than one shared direct-leaf image ID.
+func (c Claim) UsesPolicyDigest() bool {
+	return c.Version == VersionHeterogeneousParent &&
+		c.LeafClaimKind == LeafKindHeterogeneousEnvelopeV1
+}
+
+// HeterogeneousPolicyDigestV1 returns the pinned policy digest for the first
+// mixed-direct-child parent mode. The digest commits to the envelope schema,
+// envelope size, maximum embedded journal size, and the allowed direct child
+// kinds so the parent claim has a stable verifier-visible policy anchor.
+func HeterogeneousPolicyDigestV1() [32]byte {
+	data := make([]byte, 0, 64)
+	data = append(data, "bip32-pq-zkp:heterogeneous-parent-policy:v1"...)
+	for _, word := range []uint32{
+		HeterogeneousEnvelopeVersionV1,
+		HeterogeneousEnvelopeSizeV1,
+		HeterogeneousEnvelopeMaxJournalSizeV1,
+		LeafKindTaproot,
+		LeafKindHardenedXPriv,
+		LeafKindBatchClaimV1,
+	} {
+		data = binary.LittleEndian.AppendUint32(data, word)
+	}
+
+	return sha256.Sum256(data)
 }
