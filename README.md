@@ -324,7 +324,7 @@ make verify-batch GO_GOROOT=/path/to/go1.24.4 \
   BATCH_INCLUSION=./artifacts/hardened-xpriv-batch.inclusion.json
 ```
 
-See `docs/aggregation-design.md` for the full architecture and
+See `docs/batch-aggregation.md` for the full architecture and
 `docs/running.md` for all batch Makefile targets and variables.
 
 ## Policy
@@ -357,4 +357,5 @@ Other open directions:
 - `docs/claim.md`: claim specification and v2 sketch
 - `docs/running.md`: build, execute, prove, and verify commands
 - `docs/reduced-variants.md`: side-by-side comparison of all three proof lanes
-- `docs/aggregation-design.md`: recursive batch aggregation architecture
+- `docs/batch-aggregation.md`: batch aggregation design, verifier flow, and scaling results
+- `docs/batch-future-work.md`: hierarchical batching, leaf evolution, and future directions

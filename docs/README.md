@@ -14,13 +14,16 @@ Start with `../doc.go` for the package-level overview, then:
 4. `reduced-variants.md`
    - side-by-side comparison of the full Taproot proof and the two reduced
      hardened-derivation variants
-5. `aggregation-design.md`
-   - recursive batch aggregation design, the implemented v1 batch lane,
-     Merkle-root claims, and sparse verification
-6. `code-format.md`
+5. `batch-aggregation.md`
+   - how the v1 batch lane works, batch claim schema, Merkle tree
+     construction, verifier flow, and scaling results
+6. `batch-future-work.md`
+   - hierarchical batching, leaf schema evolution, accumulator
+     alternatives, and multi-UTXO authorization directions
+7. `code-format.md`
    - the commenting, stanza, and readability rules used for the Go code in
      this repo
-7. `../progress.md`
+8. `../progress.md`
    - repo-local working log and major findings
 
 ## Core Claim
