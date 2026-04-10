@@ -16,6 +16,10 @@ HOST_CMD := ./cmd/bip32-pq-zkp-host
 ARTIFACT_DIR ?= ./artifacts
 RECEIPT ?= $(ARTIFACT_DIR)/bip32-test-vector.receipt
 CLAIM ?= $(ARTIFACT_DIR)/bip32-test-vector.claim.json
+BATCH_RECEIPT ?= $(ARTIFACT_DIR)/hardened-xpriv-batch.receipt
+BATCH_CLAIM ?= $(ARTIFACT_DIR)/hardened-xpriv-batch.claim.json
+BATCH_INCLUSION ?= $(batch_inclusion)
+BATCH_INCLUSION_OUT ?= $(if $(strip $(batch_inclusion_out)),$(batch_inclusion_out),$(ARTIFACT_DIR)/hardened-xpriv-batch.inclusion.json)
 HARDENED_XPUB_RECEIPT ?= $(ARTIFACT_DIR)/hardened-xpub-test-vector.receipt
 HARDENED_XPUB_CLAIM ?= $(ARTIFACT_DIR)/hardened-xpub-test-vector.claim.json
 HARDENED_XPRIV_RECEIPT ?= $(ARTIFACT_DIR)/hardened-xpriv-test-vector.receipt
@@ -30,11 +34,15 @@ HARDENED_PATH ?= $(hardened_path)
 EXPECTED_COMPRESSED_PUBKEY ?= $(expected_compressed_pubkey)
 EXPECTED_CHILD_PRIVATE_KEY ?= $(expected_child_private_key)
 EXPECTED_CHAIN_CODE ?= $(expected_chain_code)
+BATCH_LEAF_KIND ?= $(if $(strip $(leaf_kind)),$(leaf_kind),hardened-xpriv)
+BATCH_LEAF_CLAIMS ?= $(if $(strip $(leaf_claims)),$(leaf_claims),./$(ARTIFACT_DIR)/hardened-xpriv-succinct.claim.json ./$(ARTIFACT_DIR)/hardened-xpriv-succinct.claim.json)
+BATCH_LEAF_RECEIPTS ?= $(if $(strip $(leaf_receipts)),$(leaf_receipts),./$(ARTIFACT_DIR)/hardened-xpriv-succinct.receipt ./$(ARTIFACT_DIR)/hardened-xpriv-succinct.receipt)
+BATCH_LEAF_INDEX ?= $(if $(strip $(leaf_index)),$(leaf_index),0)
 REQUIRE_BIP86 ?= 1
 RECEIPT_KIND ?= $(if $(strip $(receipt_kind)),$(receipt_kind),composite)
 GOFMT_FILES := $(shell find . -type f -name '*.go' -not -path './host/*' -not -path './vendor/*')
-NATIVE_GO_PKGS := . ./bip32 ./cmd/bip32-pq-zkp-host ./hostcheck
-NATIVE_TEST_PKGS := . ./cmd/bip32-pq-zkp-host ./hostcheck
+NATIVE_GO_PKGS := . ./batchclaim ./bip32 ./cmd/bip32-pq-zkp-host ./hostcheck
+NATIVE_TEST_PKGS := . ./batchclaim ./cmd/bip32-pq-zkp-host ./hostcheck
 
 TRUTHY_VALUES := 1 true TRUE yes YES y Y on ON
 
@@ -44,7 +52,7 @@ define print
 	@echo $(GREEN)$1$(NC)
 endef
 
-.PHONY: all check-tools hostcheck platform-standalone host-ffi bip32-platform-latest hardened-xpub-platform-latest hardened-xpriv-platform-latest execute prove verify execute-hardened-xpub prove-hardened-xpub verify-hardened-xpub execute-hardened-xpriv prove-hardened-xpriv verify-hardened-xpriv fmt fmt-check tidy tidy-check local-custom-gcl install-custom-gcl build-native-linter lint-native lint native-check clean
+.PHONY: all check-tools hostcheck platform-standalone host-ffi bip32-platform-latest batch-platform-latest hardened-xpub-platform-latest hardened-xpriv-platform-latest execute prove verify execute-batch prove-batch verify-batch derive-batch-inclusion execute-hardened-xpub prove-hardened-xpub verify-hardened-xpub execute-hardened-xpriv prove-hardened-xpriv verify-hardened-xpriv fmt fmt-check tidy tidy-check local-custom-gcl install-custom-gcl build-native-linter lint-native lint native-check clean
 
 all: bip32-platform-latest
 
@@ -109,6 +117,11 @@ hardened-xpriv-platform-latest: check-tools
 	$(CONVERT) hardened-xpriv-platform-latest.elf $(KERNEL) hardened-xpriv-platform-latest.bin
 	@echo "Built hardened-xpriv-platform-latest.bin"
 
+batch-platform-latest: check-tools
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(TINYGO_BIN) build -target=zkvm-platform -scheduler=none -no-debug -ldflags='-extldflags=$(PLATFORM_LIB)' -o batch-platform-latest.elf ./guest_batch
+	$(CONVERT) batch-platform-latest.elf $(KERNEL) batch-platform-latest.bin
+	@echo "Built batch-platform-latest.bin"
+
 execute: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute --guest ./bip32-platform-latest.bin $(call witness_args)
 
@@ -117,6 +130,18 @@ prove: host-ffi bip32-platform-latest
 
 verify: host-ffi bip32-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify --guest ./bip32-platform-latest.bin --receipt-in ./$(RECEIPT) $(if $(strip $(CLAIM)),--claim-in ./$(CLAIM),) $(call verify_args)
+
+execute-batch: host-ffi batch-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-batch --guest ./batch-platform-latest.bin --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args)
+
+prove-batch: host-ffi batch-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) prove-batch --guest ./batch-platform-latest.bin --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) --receipt-kind $(RECEIPT_KIND) --receipt-out ./$(BATCH_RECEIPT) --claim-out ./$(BATCH_CLAIM)
+
+verify-batch: host-ffi batch-platform-latest
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) verify-batch --guest ./batch-platform-latest.bin --receipt-in ./$(BATCH_RECEIPT) $(if $(strip $(BATCH_CLAIM)),--claim-in ./$(BATCH_CLAIM),) $(if $(strip $(BATCH_INCLUSION)),--inclusion-in ./$(BATCH_INCLUSION),)
+
+derive-batch-inclusion: host-ffi
+	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) derive-batch-inclusion --leaf-kind $(BATCH_LEAF_KIND) $(call batch_leaf_args) --leaf-index $(BATCH_LEAF_INDEX) --proof-out ./$(BATCH_INCLUSION_OUT)
 
 execute-hardened-xpub: host-ffi hardened-xpub-platform-latest
 	PATH=$(GO_GOROOT)/bin:$$PATH GOROOT=$(GO_GOROOT) $(GO) run $(HOST_CMD) execute-hardened-xpub --guest ./hardened-xpub-platform-latest.bin $(call hardened_xpub_witness_args)
@@ -163,4 +188,8 @@ endef
 
 define hardened_xpriv_verify_args
 $(if $(strip $(EXPECTED_CHILD_PRIVATE_KEY)),--expected-child-private-key $(EXPECTED_CHILD_PRIVATE_KEY),) $(if $(strip $(EXPECTED_CHAIN_CODE)),--expected-chain-code $(EXPECTED_CHAIN_CODE),)
+endef
+
+define batch_leaf_args
+$(foreach claim,$(BATCH_LEAF_CLAIMS),--leaf-claim $(claim)) $(foreach receipt,$(BATCH_LEAF_RECEIPTS),--leaf-receipt $(receipt))
 endef
