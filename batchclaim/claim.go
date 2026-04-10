@@ -38,6 +38,10 @@ const (
 	// journal (72 bytes: version, flags, child private key, chain code).
 	LeafKindHardenedXPriv = 2
 
+	// LeafKindBatchClaimV1 identifies one serialized v1 batch claim used as
+	// a leaf inside a higher-level parent batch.
+	LeafKindBatchClaimV1 = 3
+
 	// PublicClaimSize is the serialized size of Claim in bytes:
 	// 4 (version) + 4 (flags) + 4 (leaf kind) + 4 (merkle hash kind) +
 	// 4 (leaf count) + 32 (leaf guest image ID) + 32 (merkle root) = 84.
@@ -113,8 +117,24 @@ func LeafKindName(kind uint32) string {
 		return "taproot"
 	case LeafKindHardenedXPriv:
 		return "hardened_xpriv"
+	case LeafKindBatchClaimV1:
+		return "batch_claim_v1"
 	default:
 		return "unknown"
+	}
+}
+
+// LeafClaimSize returns the fixed journal size for one supported leaf kind.
+func LeafClaimSize(kind uint32) (int, bool) {
+	switch kind {
+	case LeafKindTaproot, LeafKindHardenedXPriv:
+		return 72, true
+
+	case LeafKindBatchClaimV1:
+		return PublicClaimSize, true
+
+	default:
+		return 0, false
 	}
 }
 
