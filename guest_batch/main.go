@@ -15,14 +15,14 @@
 // Wire format on stdin (private witness):
 //
 //	[leaf_claim_kind:u32_le] [merkle_hash_kind:u32_le]
-//	[leaf_guest_image_id:32] [leaf_count:u32_le]
-//	[leaf_journal_0:*] [leaf_journal_1:*] ... [leaf_journal_N-1:*]
+//	[leaf_context_digest:32] [leaf_count:u32_le]
+//	[leaf_record_0:*] [leaf_record_1:*] ... [leaf_record_N-1:*]
 //
 // Journal output (public claim, committed to the proof):
 //
 //	[version:u32_le] [flags:u32_le] [leaf_kind:u32_le]
 //	[merkle_hash_kind:u32_le] [leaf_count:u32_le]
-//	[leaf_guest_image_id:32] [merkle_root:32]
+//	[leaf_context_digest:32] [merkle_root:32]
 package main
 
 import (
@@ -38,12 +38,12 @@ func main() {
 	// exact leaf guest binary that produced the leaf receipts.
 	var leafClaimKind uint32
 	var merkleHashKind uint32
-	var leafGuestImageID [32]byte
+	var leafContextDigest [32]byte
 	var leafCount uint32
 
 	zkvm.ReadValue(&leafClaimKind)
 	zkvm.ReadValue(&merkleHashKind)
-	zkvm.ReadValue(&leafGuestImageID)
+	zkvm.ReadValue(&leafContextDigest)
 	zkvm.ReadValue(&leafCount)
 
 	// Step 2: Validate the batch configuration. The guest rejects
@@ -61,7 +61,8 @@ func main() {
 	switch leafClaimKind {
 	case batchclaim.LeafKindTaproot,
 		batchclaim.LeafKindHardenedXPriv,
-		batchclaim.LeafKindBatchClaimV1:
+		batchclaim.LeafKindBatchClaimV1,
+		batchclaim.LeafKindHeterogeneousEnvelopeV1:
 	default:
 		zkvm.Debug("batch: unsupported leaf claim kind\n")
 		zkvm.Halt(1)
@@ -92,38 +93,66 @@ func main() {
 		expectedChildPolicy childBatchPolicy
 	)
 	for i := uint32(0); i < leafCount; i++ {
-		leaf := make([]byte, leafClaimSize)
-		zkvm.Read(leaf)
+		record := make([]byte, leafClaimSize)
+		zkvm.Read(record)
 
-		// This is the recursive composition call: it asserts that
-		// a valid receipt exists for this (image_id, journal) pair.
-		zkvm.Verify(leafGuestImageID, leaf)
-
-		if leafClaimKind == batchclaim.LeafKindBatchClaimV1 {
-			childPolicy, err := decodeChildBatchPolicy(leaf)
+		switch leafClaimKind {
+		case batchclaim.LeafKindHeterogeneousEnvelopeV1:
+			envelope, journal, err := decodeHeterogeneousEnvelope(
+				record,
+			)
 			if err != nil {
 				zkvm.Debug(
-					"batch: decode child batch claim failed\n",
+					"batch: decode heterogeneous envelope failed\n",
+				)
+				zkvm.Halt(1)
+				return
+			}
+			if leafContextDigest != expectedHeterogeneousPolicyDigest() {
+				zkvm.Debug(
+					"batch: heterogeneous policy digest mismatch\n",
 				)
 				zkvm.Halt(1)
 				return
 			}
 
-			if !childPolicySet {
-				expectedChildPolicy = childPolicy
-				childPolicySet = true
-			} else if !sameChildBatchPolicy(
-				expectedChildPolicy, childPolicy,
-			) {
-				zkvm.Debug(
-					"batch: child batch policy mismatch\n",
+			// In heterogeneous mode each direct child carries its own
+			// verify image ID inside the envelope.
+			zkvm.Verify(envelope.VerifyImageID, journal)
+
+		default:
+			// This is the recursive composition call: it asserts that
+			// a valid receipt exists for this (image_id, journal) pair.
+			zkvm.Verify(leafContextDigest, record)
+
+			if leafClaimKind == batchclaim.LeafKindBatchClaimV1 {
+				childPolicy, err := decodeChildBatchPolicy(
+					record,
 				)
-				zkvm.Halt(1)
-				return
+				if err != nil {
+					zkvm.Debug(
+						"batch: decode child batch claim failed\n",
+					)
+					zkvm.Halt(1)
+					return
+				}
+
+				if !childPolicySet {
+					expectedChildPolicy = childPolicy
+					childPolicySet = true
+				} else if !sameChildBatchPolicy(
+					expectedChildPolicy, childPolicy,
+				) {
+					zkvm.Debug(
+						"batch: child batch policy mismatch\n",
+					)
+					zkvm.Halt(1)
+					return
+				}
 			}
 		}
 
-		leaves = append(leaves, leaf)
+		leaves = append(leaves, record)
 	}
 
 	// Step 4: Build the Merkle root over the ordered, verified leaf
@@ -138,13 +167,17 @@ func main() {
 
 	// Step 5: Commit the 84-byte batch claim to the proof journal.
 	// This is the only data the verifier sees from the batch receipt.
+	claimVersion := uint32(batchclaim.Version)
+	if leafClaimKind == batchclaim.LeafKindHeterogeneousEnvelopeV1 {
+		claimVersion = batchclaim.VersionHeterogeneousParent
+	}
 	claim := batchclaim.Claim{
-		Version:          batchclaim.Version,
+		Version:          claimVersion,
 		Flags:            batchclaim.FlagsNone,
 		LeafClaimKind:    leafClaimKind,
 		MerkleHashKind:   merkleHashKind,
 		LeafCount:        leafCount,
-		LeafGuestImageID: leafGuestImageID,
+		LeafGuestImageID: leafContextDigest,
 		MerkleRoot:       root,
 	}
 	encoded := claim.Encode()
@@ -195,4 +228,24 @@ func sameChildBatchPolicy(a, b childBatchPolicy) bool {
 		a.leafClaimKind == b.leafClaimKind &&
 		a.merkleHashKind == b.merkleHashKind &&
 		a.leafGuestImageID == b.leafGuestImageID
+}
+
+// decodeHeterogeneousEnvelope parses one fixed-size heterogeneous direct-child
+// record and returns both the decoded envelope metadata and the unpadded
+// direct-child journal bytes.
+func decodeHeterogeneousEnvelope(
+	record []byte,
+) (batchclaim.HeterogeneousEnvelopeV1, []byte, error) {
+	envelope, err := batchclaim.DecodeHeterogeneousEnvelopeV1(record)
+	if err != nil {
+		return batchclaim.HeterogeneousEnvelopeV1{}, nil, err
+	}
+
+	return envelope, envelope.JournalBytes(), nil
+}
+
+// expectedHeterogeneousPolicyDigest returns the pinned policy digest for the
+// first mixed direct-child parent mode.
+func expectedHeterogeneousPolicyDigest() [32]byte {
+	return batchclaim.HeterogeneousPolicyDigestV1()
 }
