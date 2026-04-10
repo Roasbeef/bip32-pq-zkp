@@ -17,13 +17,21 @@ Start with `../doc.go` for the package-level overview, then:
 5. `batch-aggregation.md`
    - how the v1 batch lane works, batch claim schema, Merkle tree
      construction, verifier flow, and scaling results
-6. `batch-future-work.md`
-   - hierarchical batching, leaf schema evolution, accumulator
-     alternatives, and multi-UTXO authorization directions
-7. `code-format.md`
+6. `nested-batching.md`
+   - the implemented first hierarchical batch-of-batches extension,
+     bundled inclusion-chain verifier path, enforced child-batch
+     homogeneity, and current limitations
+7. `mmr-accumulator-sketch.md`
+   - shorter sketch of the append-only / flat-root-preserving accumulator
+     direction if we later need stronger incremental semantics
+8. `batch-future-work.md`
+   - broader future directions beyond the implemented nested layer:
+     heterogeneous parent leaves, accumulator alternatives, and multi-UTXO
+     authorization
+9. `code-format.md`
    - the commenting, stanza, and readability rules used for the Go code in
      this repo
-8. `../progress.md`
+10. `../progress.md`
    - repo-local working log and major findings
 
 ## Core Claim

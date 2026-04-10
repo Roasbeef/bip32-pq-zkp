@@ -11,7 +11,7 @@ demo-specific UX across all three proof lanes:
 - Hardened xpriv: `execute-hardened-xpriv`, `prove-hardened-xpriv`,
   `verify-hardened-xpriv`
 - Batch aggregation: `execute-batch`, `prove-batch`, `verify-batch`,
-  `derive-batch-inclusion`
+  `derive-batch-inclusion`, `bundle-batch-inclusion-chain`
 
 ## Expected Sibling Layout
 
@@ -289,19 +289,21 @@ Current validated hardened-xpriv batch scaling matrix:
 | 2 | succinct  | 223,343 | 222,668 | 755 | 456 | 5.35 | 0.02 |
 | 4 | composite | 1,138,062 | 1,135,864 | 756 | 528 | 3.66 | 0.06 |
 | 4 | succinct  | 223,343 | 222,668 | 755 | 528 | 9.44 | 0.02 |
-| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.31 | 0.10 |
-| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 18.35 | 0.02 |
-| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.50 | 0.21 |
-| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 34.91 | 0.02 |
+| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.27 | 0.12 |
+| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 17.74 | 0.04 |
+| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.24 | 0.22 |
+| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 33.80 | 0.04 |
 
 Current validated batch identity values:
 
 - batch guest image ID:
-  - `be640787a044075b250a09002bb4f1e0000723cd0757e49160ce5b7b030623f7`
+  - `c864c3b7dcd4c2326de27277115d0899ab5ca59543c642fda3e3a49551552a33`
 - hardened-xpriv leaf guest image ID:
   - `8401a36e4f54cb2beaf9ac7677603806cf9d775e90ef5a70168045a3c0df0849`
 - current two-leaf hardened-xpriv batch Merkle root:
   - `0a0a1d7c7baf543b60321fb0303a4a70d46a6ba8371399110d1affb43efc03c0`
+- current validated three-level nested top root:
+  - `8fabf9c04a03e18f47ef37fe23c3bdbfb9984767d77b055b53a5ae10e4d7aaf3`
 
 Smaller confirmation matrix for the original full Taproot leaf schema:
 
@@ -315,6 +317,78 @@ Smaller confirmation matrix for the original full Taproot leaf schema:
 The key measured takeaway is that the final succinct batch receipt stays flat
 at ~223 KB across the current matrix, while the batch fan-out shows up in the
 Merkle inclusion artifact rather than the final receipt itself.
+
+### Nested Batch Claims
+
+The first hierarchical batch layer is implemented with the same batch guest.
+Parent batches use child batch `claim.json` artifacts as 84-byte leaves, and
+the canonical verifier path now uses one bundled inclusion-chain JSON file:
+
+- child batches are still built with `prove-batch`
+- parent batches switch to `BATCH_LEAF_KIND=batch-claim-v1`
+- `bundle-batch-inclusion-chain` combines one proof per level into one
+  verifier artifact
+- `verify-nested-batch` consumes that bundled chain directly
+
+A minimal two-level example now looks like:
+
+```bash
+make prove-parent-batch \
+  GO_GOROOT=/path/to/go1.24.4 \
+  RECEIPT_KIND=succinct \
+  PARENT_BATCH_RECEIPT=/tmp/parent.receipt \
+  PARENT_BATCH_CLAIM=/tmp/parent.claim.json \
+  PARENT_BATCH_CHILD_CLAIMS="/tmp/child-a.claim.json /tmp/child-b.claim.json" \
+  PARENT_BATCH_CHILD_RECEIPTS="/tmp/child-a.receipt /tmp/child-b.receipt"
+
+make derive-parent-batch-inclusion \
+  GO_GOROOT=/path/to/go1.24.4 \
+  PARENT_BATCH_INCLUSION_OUT=/tmp/parent.inclusion.json \
+  PARENT_BATCH_LEAF_INDEX=1 \
+  PARENT_BATCH_CHILD_CLAIMS="/tmp/child-a.claim.json /tmp/child-b.claim.json" \
+  PARENT_BATCH_CHILD_RECEIPTS="/tmp/child-a.receipt /tmp/child-b.receipt"
+
+make bundle-batch-inclusion-chain \
+  GO_GOROOT=/path/to/go1.24.4 \
+  BATCH_INCLUSIONS="/tmp/parent.inclusion.json /tmp/child-b.inclusion.json" \
+  BATCH_INCLUSION_CHAIN=/tmp/parent.chain.json
+
+make verify-nested-batch \
+  GO_GOROOT=/path/to/go1.24.4 \
+  PARENT_BATCH_RECEIPT=/tmp/parent.receipt \
+  PARENT_BATCH_CLAIM=/tmp/parent.claim.json \
+  BATCH_INCLUSION_CHAIN=/tmp/parent.chain.json
+```
+
+The current implementation keeps each batch level homogeneous in its direct
+leaf kind:
+
+- base batch: `taproot` or `hardened-xpriv`
+- parent batch: `batch-claim-v1`
+- all child batch claims under one parent must agree on:
+  - child batch version and flags
+  - child leaf kind
+  - child Merkle hash kind
+  - child leaf guest image ID
+
+So the verifier receives:
+
+1. one final parent receipt
+2. one bundled inclusion-chain JSON artifact
+3. one disclosed original leaf journal at the bottom
+
+The lower-level interface still supports repeated `--inclusion-in` flags on
+`verify-batch`, but the bundled chain artifact is now the primary nested
+verifier path.
+
+Current validated flat-vs-nested comparison on the hardened-xpriv lane:
+
+| N | Final kind | Flat prove | Flat peak RSS | Nested total prove | Nested peak RSS | Flat verifier artifact | Nested verifier artifact |
+|---|------------|------------|---------------|--------------------|-----------------|------------------------|--------------------------|
+| 8 | composite | 7.27s | 11.21 GiB | 24.79s | 5.75 GiB | 2,043,514 B | 1,139,980 B |
+| 8 | succinct | 17.74s | 11.20 GiB | 30.69s | 5.74 GiB | 224,698 B | 225,260 B |
+| 16 | composite | 11.24s | 11.25 GiB | 45.25s | 5.75 GiB | 4,073,839 B | 1,140,056 B |
+| 16 | succinct | 33.80s | 11.26 GiB | 51.82s | 5.75 GiB | 224,772 B | 225,337 B |
 
 Compatibility notes for verifiers:
 

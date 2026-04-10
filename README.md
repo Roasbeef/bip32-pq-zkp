@@ -270,8 +270,12 @@ receipts, all from the same guest image, whose ordered journals hash to
 this root."
 
 The batch guest supports both hardened-xpriv and full Taproot leaf schemas.
-Verifiers can either verify the batch receipt alone or check one disclosed
-leaf via an ordinary Merkle inclusion proof generated outside the guest.
+The first nested layer is also implemented: parent batches can use
+`batch-claim-v1` leaves built from child batch `claim.json` artifacts.
+Verifiers can either verify the batch receipt alone, check one disclosed
+leaf via an ordinary Merkle inclusion proof, or verify one bundled nested
+inclusion-chain artifact that walks from the top batch down to one disclosed
+original leaf.
 
 Current hardened-xpriv batch scaling results:
 
@@ -282,9 +286,9 @@ Current hardened-xpriv batch scaling results:
 | 4 | composite | 1,138,062 | 1,135,864 | 756 | 528 | 3.66 |
 | 4 | succinct  | 223,343 | 222,668 | 755 | 528 | 9.44 |
 | 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.31 |
-| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 18.35 |
-| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.50 |
-| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 34.91 |
+| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 17.74 |
+| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.24 |
+| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 33.80 |
 
 The final succinct batch receipt stayed flat at ~223 KB across the current
 matrix. The fan-out shows up in the Merkle inclusion layer and the batch
@@ -313,6 +317,19 @@ very close to the hardened-xpriv numbers:
 That strongly suggests the current aggregation cost is mostly “verify `N`
 succinct leaf receipts plus Merkle-hash their journals,” not “re-run the
 original leaf semantics.”
+
+Current flat-vs-nested comparison on the hardened-xpriv lane:
+
+| N | Final kind | Flat prove | Flat peak RSS | Nested total prove | Nested peak RSS | Flat verifier artifact | Nested verifier artifact |
+|---|------------|------------|---------------|--------------------|-----------------|------------------------|--------------------------|
+| 8 | composite | 7.27s | 11.21 GiB | 24.79s | 5.75 GiB | 2,043,514 B | 1,139,980 B |
+| 8 | succinct | 17.74s | 11.20 GiB | 30.69s | 5.74 GiB | 224,698 B | 225,260 B |
+| 16 | composite | 11.24s | 11.25 GiB | 45.25s | 5.75 GiB | 4,073,839 B | 1,140,056 B |
+| 16 | succinct | 33.80s | 11.26 GiB | 51.82s | 5.75 GiB | 224,772 B | 225,337 B |
+
+The current nested design therefore trades more total proving work for much
+lower peak memory and a smaller composite top-level receipt, while the final
+succinct artifact stays on the same ~223 KB scale either way.
 
 Quick start:
 
@@ -349,6 +366,10 @@ Other open directions:
 - scaling experiments at larger N for the batch aggregation lane
 - deciding whether the disclosed batch leaf format should remain
   hardened-xpriv or move to xpub/full-Taproot for privacy
+- deciding whether to support heterogeneous parent batches such as
+  `{batch_claim_v1, raw_leaf, raw_leaf}`
+- deciding whether the nested wrappers should avoid rebuilding `host-ffi`
+  and `batch-platform-latest` on every step
 - spend-bound leaf claims that include outpoint or sighash binding
 
 ## Documentation
@@ -358,4 +379,6 @@ Other open directions:
 - `docs/running.md`: build, execute, prove, and verify commands
 - `docs/reduced-variants.md`: side-by-side comparison of all three proof lanes
 - `docs/batch-aggregation.md`: batch aggregation design, verifier flow, and scaling results
-- `docs/batch-future-work.md`: hierarchical batching, leaf evolution, and future directions
+- `docs/nested-batching.md`: implemented nested batch-of-batches design,
+  bundled inclusion-chain verification, and current limits
+- `docs/batch-future-work.md`: post-nested future directions

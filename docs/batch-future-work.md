@@ -1,10 +1,14 @@
 # Batch Aggregation: Future Directions
 
-## Hierarchical Batching
+## Beyond The First Nested Layer
 
-The natural next step is nested batch-of-batches: build child batches over
-chunks of leaves, then aggregate those child batch claims into a parent
-batch.
+The first nested batch-of-batches layer is implemented. Child batches can be
+built over chunks of leaves, then aggregated into a parent batch via
+`batch_claim_v1`.
+
+See `nested-batching.md` for the implemented first cut and its current
+limitations. This file keeps the broader future-work context beyond that
+initial layer.
 
 For example, 15 leaves with chunk size 5:
 
@@ -32,13 +36,16 @@ Sparse verification becomes a chain of inclusion proofs:
 So the verifier sees: one receipt, one inclusion proof per hierarchy level,
 and one disclosed leaf at the bottom.
 
-### Code Changes Needed
+### Remaining Open Questions
 
-1. A new batch leaf kind for child batch claims (84 bytes instead of 72)
-2. The guest-side read loop generalized beyond the current fixed 72-byte
-   leaf size
-3. Chained sparse verification in the host-side inclusion checking
-4. Updated docs for the multi-level verifier story
+1. Whether parent batches should eventually support mixed direct leaf kinds
+   at one level, for example `{batch_claim_v1, raw_leaf_1, raw_leaf_2}`,
+   instead of the current homogeneous-per-level rule
+2. Whether a flatter append-only accumulator design becomes preferable once
+   the hierarchy gets deeper or batches are produced incrementally over time
+3. Whether the current nested workflow should grow a one-shot wrapper that
+   avoids repeated `host-ffi` and guest rebuild checks across multi-step
+   batch commands
 
 ## Leaf Schema Evolution
 
@@ -65,6 +72,8 @@ supported without changing the batch guest or Merkle tree code.
 The current design uses a flat binary Merkle tree. If incremental batching
 requires a single flat root over all original leaves (not nested), the
 current tree does not compose across separately-built chunks.
+
+See `mmr-accumulator-sketch.md` for the shorter append-only accumulator sketch.
 
 Alternatives for that requirement:
 

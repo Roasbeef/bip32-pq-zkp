@@ -27,10 +27,11 @@ The important distinction is:
 ### Step 1: Leaf Proofs
 
 Each leaf proof is generated using one of the single-key lanes (full
-Taproot, hardened-xpub, or hardened-xpriv) and stored as a
-`receipt + claim.json` pair. Leaf receipts must be compressed to succinct
-form because the risc0 host API requires succinct receipts for assumption
-resolution.
+Taproot or hardened-xpriv today) and stored as a `receipt + claim.json`
+pair. The first nested layer also reuses this same batch guest with
+`batch_claim_v1` leaves, where each leaf is itself one serialized child
+batch claim. Leaf receipts must be compressed to succinct form because the
+risc0 host API requires succinct receipts for assumption resolution.
 
 ### Step 2: Batch Guest Execution
 
@@ -58,7 +59,7 @@ succinct. The succinct form stays at ~223 KB regardless of N.
 ```text
 [0:4]   batch_version      (uint32 LE, currently 1)
 [4:8]   batch_flags        (uint32 LE, currently 0)
-[8:12]  leaf_claim_kind    (uint32 LE: 1=taproot, 2=hardened_xpriv)
+[8:12]  leaf_claim_kind    (uint32 LE: 1=taproot, 2=hardened_xpriv, 3=batch_claim_v1)
 [12:16] merkle_hash_kind   (uint32 LE: 1=sha256)
 [16:20] leaf_count         (uint32 LE)
 [20:52] leaf_guest_image_id (32 bytes, pinned once per batch)
@@ -101,6 +102,29 @@ duplicate the last node (Bitcoin-style).
 No leaf receipt needs to be distributed. The batch receipt already proves
 that the root came from valid leaf receipts.
 
+### Sparse Verification (Nested Batch Chain)
+
+The first hierarchical layer is now implemented without changing the batch
+guest binary:
+
+1. child batches are built with `prove-batch`
+2. parent batches set `--leaf-kind batch-claim-v1`
+3. parent leaves are child batch `claim.json` journals plus their succinct
+   receipts
+4. `bundle-batch-inclusion-chain` combines one proof per level into one
+   verifier artifact
+5. `verify-batch` or `verify-nested-batch` can verify that bundled chain
+
+The verifier flow becomes:
+
+1. verify the final parent receipt
+2. verify inclusion of one child batch claim in the parent root
+3. decode that disclosed child batch claim from the parent inclusion proof
+4. verify inclusion of one original leaf in the child batch root
+
+So the final verifier-facing artifact is still one receipt plus small JSON
+artifacts, but sparse verification now needs one Merkle branch per level.
+
 ## Scaling Results
 
 Hardened-xpriv batch scaling (Apple Silicon, Metal-backed local prover):
@@ -111,10 +135,10 @@ Hardened-xpriv batch scaling (Apple Silicon, Metal-backed local prover):
 | 2 | succinct  | 223,343 | 222,668 | 755 | 456 | 5.35 | 3.17 GB | 0.02 |
 | 4 | composite | 1,138,062 | 1,135,864 | 756 | 528 | 3.66 | 6.03 GB | 0.06 |
 | 4 | succinct  | 223,343 | 222,668 | 755 | 528 | 9.44 | 6.02 GB | 0.02 |
-| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.31 | 11.73 GB | 0.10 |
-| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 18.35 | 11.73 GB | 0.02 |
-| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.50 | 11.82 GB | 0.21 |
-| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 34.91 | 11.81 GB | 0.02 |
+| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.27 | 11.21 GB | 0.12 |
+| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 17.74 | 11.20 GB | 0.04 |
+| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.24 | 11.25 GB | 0.22 |
+| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 33.80 | 11.26 GB | 0.04 |
 
 Full Taproot leaf confirmation:
 
@@ -147,6 +171,39 @@ For sparse verification, the comparison is:
 The batch approach gives nearly flat verifier-facing artifact size while
 N separate receipts grow linearly.
 
+## Flat Vs Nested (Hardened XPriv)
+
+The first homogeneous nested layer now has direct measurements at the same
+total original-leaf count:
+
+| N | Final kind | Flat prove | Flat peak RSS | Nested total prove | Nested peak RSS | Flat verifier artifact | Nested verifier artifact |
+|---|------------|------------|---------------|--------------------|-----------------|------------------------|--------------------------|
+| 8 | composite | 7.27s | 11.21 GiB | 24.79s | 5.75 GiB | 2,043,514 B | 1,139,980 B |
+| 8 | succinct | 17.74s | 11.20 GiB | 30.69s | 5.74 GiB | 224,698 B | 225,260 B |
+| 16 | composite | 11.24s | 11.25 GiB | 45.25s | 5.75 GiB | 4,073,839 B | 1,140,056 B |
+| 16 | succinct | 33.80s | 11.26 GiB | 51.82s | 5.75 GiB | 224,772 B | 225,337 B |
+
+Here, `flat verifier artifact` means:
+
+- final receipt
+- `claim.json`
+- one flat inclusion proof
+
+And `nested verifier artifact` means:
+
+- final top-level receipt
+- top-level `claim.json`
+- one bundled inclusion-chain JSON artifact
+
+Main takeaway:
+
+- nested batches materially reduce peak RSS and the composite top-level
+  receipt size
+- nested batches increase total prove time because the child batches must be
+  proven first
+- once the final parent receipt is `succinct`, the final distributed proof
+  still stays on the same ~223 KB scale
+
 ## What Grows And What Does Not
 
 Roughly constant with N:
@@ -169,7 +226,13 @@ Grows with number of disclosed leaves:
 ## Design Decisions (v1)
 
 1. SHA-256 for the Merkle tree (Bitcoin-adjacent, easy for external verifiers)
-2. One pinned `leaf_guest_image_id` per batch (no mixed-schema batches)
+2. One pinned direct leaf kind plus one pinned `leaf_guest_image_id` per
+   batch; parent `batch_claim_v1` leaves are decoded and must agree on child
+   batch version, child flags, child leaf kind, child Merkle hash kind, and
+   child leaf guest image ID
 3. Fixed-size 84-byte batch claim (root-based, not leaf-enumerating)
 4. Both batch-only and sparse-inclusion verification modes
 5. Both hardened-xpriv and full Taproot leaf schemas validated
+6. First nested `batch_claim_v1` parent layer implemented with a bundled
+   inclusion-chain verifier artifact, while repeated `--inclusion-in` files
+   remain available as the low-level interface
