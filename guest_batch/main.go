@@ -16,7 +16,7 @@
 //
 //	[leaf_claim_kind:u32_le] [merkle_hash_kind:u32_le]
 //	[leaf_guest_image_id:32] [leaf_count:u32_le]
-//	[leaf_journal_0:72] [leaf_journal_1:72] ... [leaf_journal_N-1:72]
+//	[leaf_journal_0:*] [leaf_journal_1:*] ... [leaf_journal_N-1:*]
 //
 // Journal output (public claim, committed to the proof):
 //
@@ -29,12 +29,6 @@ import (
 	"github.com/roasbeef/bip32-pq-zkp/batchclaim"
 	"github.com/roasbeef/go-zkvm/zkvm"
 )
-
-// supportedLeafClaimSize is the expected journal size for both supported
-// leaf kinds (Taproot = 72 bytes, hardened-xpriv = 72 bytes). If a future
-// leaf kind has a different size, this constant and the read loop would
-// need to be generalized.
-const supportedLeafClaimSize = 72
 
 func main() {
 	zkvm.Debug("batch: start\n")
@@ -65,9 +59,18 @@ func main() {
 		return
 	}
 	switch leafClaimKind {
-	case batchclaim.LeafKindTaproot, batchclaim.LeafKindHardenedXPriv:
+	case batchclaim.LeafKindTaproot,
+		batchclaim.LeafKindHardenedXPriv,
+		batchclaim.LeafKindBatchClaimV1:
 	default:
 		zkvm.Debug("batch: unsupported leaf claim kind\n")
+		zkvm.Halt(1)
+		return
+	}
+
+	leafClaimSize, ok := batchclaim.LeafClaimSize(leafClaimKind)
+	if !ok {
+		zkvm.Debug("batch: unsupported leaf claim size\n")
 		zkvm.Halt(1)
 		return
 	}
@@ -78,13 +81,48 @@ func main() {
 	// against the corresponding succinct leaf receipt. If any leaf
 	// receipt is invalid or missing, the batch proof will fail.
 	leaves := make([][]byte, 0, leafCount)
+
+	// When aggregating child batch claims, the guest enforces a
+	// homogeneous subtree policy. The first child pins the expected
+	// policy; every subsequent child must match exactly. This is
+	// provably checked by the zkVM so verifiers can trust it
+	// without seeing the individual child claims.
+	var (
+		childPolicySet      bool
+		expectedChildPolicy childBatchPolicy
+	)
 	for i := uint32(0); i < leafCount; i++ {
-		leaf := make([]byte, supportedLeafClaimSize)
+		leaf := make([]byte, leafClaimSize)
 		zkvm.Read(leaf)
 
 		// This is the recursive composition call: it asserts that
 		// a valid receipt exists for this (image_id, journal) pair.
 		zkvm.Verify(leafGuestImageID, leaf)
+
+		if leafClaimKind == batchclaim.LeafKindBatchClaimV1 {
+			childPolicy, err := decodeChildBatchPolicy(leaf)
+			if err != nil {
+				zkvm.Debug(
+					"batch: decode child batch claim failed\n",
+				)
+				zkvm.Halt(1)
+				return
+			}
+
+			if !childPolicySet {
+				expectedChildPolicy = childPolicy
+				childPolicySet = true
+			} else if !sameChildBatchPolicy(
+				expectedChildPolicy, childPolicy,
+			) {
+				zkvm.Debug(
+					"batch: child batch policy mismatch\n",
+				)
+				zkvm.Halt(1)
+				return
+			}
+		}
+
 		leaves = append(leaves, leaf)
 	}
 
@@ -113,4 +151,48 @@ func main() {
 	zkvm.Commit(encoded[:])
 	zkvm.Debug("batch: committed\n")
 	zkvm.Halt(0)
+}
+
+// childBatchPolicy captures the subset of a child batch claim that must be
+// identical across all batch_claim_v1 leaves within one parent batch. This
+// is the guest-side counterpart to the same-named struct in batch_support.go.
+// Enforcing policy homogeneity inside the guest means the constraint is
+// provably checked by the zkVM, not just trusted from the host.
+type childBatchPolicy struct {
+	version          uint32
+	flags            uint32
+	leafClaimKind    uint32
+	merkleHashKind   uint32
+	leafGuestImageID [32]byte
+}
+
+// decodeChildBatchPolicy parses a child batch claim journal into its
+// policy-relevant fields. This is called inside the guest when the batch is
+// aggregating batch_claim_v1 leaves to enforce that every child subtree
+// shares the same version, flags, leaf kind, Merkle hash, and leaf guest
+// image ID.
+func decodeChildBatchPolicy(journal []byte) (childBatchPolicy, error) {
+	claim, err := batchclaim.Decode(journal)
+	if err != nil {
+		return childBatchPolicy{}, err
+	}
+
+	return childBatchPolicy{
+		version:          claim.Version,
+		flags:            claim.Flags,
+		leafClaimKind:    claim.LeafClaimKind,
+		merkleHashKind:   claim.MerkleHashKind,
+		leafGuestImageID: claim.LeafGuestImageID,
+	}, nil
+}
+
+// sameChildBatchPolicy returns true iff both policies are identical across
+// all five pinned fields. This is the guest-side enforcement point for the
+// homogeneous child subtree invariant.
+func sameChildBatchPolicy(a, b childBatchPolicy) bool {
+	return a.version == b.version &&
+		a.flags == b.flags &&
+		a.leafClaimKind == b.leafClaimKind &&
+		a.merkleHashKind == b.merkleHashKind &&
+		a.leafGuestImageID == b.leafGuestImageID
 }
