@@ -45,23 +45,72 @@ Currently validated:
 - batch-only verification
 - batch verification plus external Merkle inclusion checking
 
-Current measured two-leaf hardened-xpriv batch results:
+Current measured hardened-xpriv batch scaling results:
 
-- batch guest image ID:
-  - `be640787a044075b250a09002bb4f1e0000723cd0757e49160ce5b7b030623f7`
-- batch root:
-  - `0a0a1d7c7baf543b60321fb0303a4a70d46a6ba8371399110d1affb43efc03c0`
-- final composite batch receipt:
-  - seal `679904` bytes
-  - receipt file `681214` bytes
-- final succinct batch receipt:
-  - seal `222668` bytes
-  - receipt file `223343` bytes
+| N | Kind | Receipt bytes | Seal bytes | Claim JSON | Inclusion JSON | Prove sec | Prove RSS | Verify sec |
+|---|------|---------------|------------|------------|----------------|-----------|-----------|------------|
+| 2 | composite | 681,214 | 679,904 | 755 | 456 | 2.06 | 3.16 GB | 0.04 |
+| 2 | succinct  | 223,343 | 222,668 | 755 | 456 | 5.35 | 3.17 GB | 0.02 |
+| 4 | composite | 1,138,062 | 1,135,864 | 756 | 528 | 3.66 | 6.03 GB | 0.06 |
+| 4 | succinct  | 223,343 | 222,668 | 755 | 528 | 9.44 | 6.02 GB | 0.02 |
+| 8 | composite | 2,042,158 | 2,038,184 | 756 | 600 | 7.31 | 11.73 GB | 0.10 |
+| 8 | succinct  | 223,343 | 222,668 | 755 | 600 | 18.35 | 11.73 GB | 0.02 |
+| 16 | composite | 4,072,409 | 4,064,720 | 757 | 673 | 11.50 | 11.82 GB | 0.21 |
+| 16 | succinct  | 223,343 | 222,668 | 756 | 673 | 34.91 | 11.81 GB | 0.02 |
 
 The important result is that once the final batch guest itself is proven as
 `succinct`, the final batch artifact stays on the same order of magnitude as
 the single-leaf succinct receipts, while the public batch claim grows only by
 the fixed metadata plus the 32-byte Merkle root.
+
+There is now also a smaller confirmation matrix for the original full Taproot
+leaf schema:
+
+| Leaf kind | N | Kind | Receipt bytes | Claim JSON | Inclusion JSON | Prove sec |
+|-----------|---|------|---------------|------------|----------------|-----------|
+| taproot | 2 | composite | 681,214 | 748 | 449 | 2.64 |
+| taproot | 2 | succinct  | 223,343 | 748 | 449 | 6.43 |
+| taproot | 8 | composite | 2,042,158 | 749 | 593 | 10.35 |
+| taproot | 8 | succinct  | 223,343 | 748 | 593 | 21.22 |
+
+The Taproot confirmation points land very close to the hardened-xpriv numbers.
+That strongly suggests the current batch cost is dominated by verifying `N`
+succinct leaf receipts plus hashing their journals into the Merkle tree,
+rather than by the original leaf-statement semantics.
+
+## What The Batch Receipt Actually Buys
+
+For sparse disclosure, the right comparison is:
+
+- `N` separate succinct leaf receipts
+- versus one final succinct batch receipt plus one inclusion proof
+
+Using the hardened-xpriv lane, the single-leaf succinct receipt is `223,319`
+bytes on disk. The final succinct batch receipt stayed at `223,343` bytes
+across the current matrix.
+
+That means the verifier-facing artifact comparison for “prove one leaf is in
+this validated batch” looks like:
+
+| N | Separate leaf receipts only | Final succinct batch + claim + inclusion |
+|---|-----------------------------|-------------------------------------------|
+| 2 | 446,638 B | 224,554 B |
+| 4 | 893,276 B | 224,626 B |
+| 8 | 1,786,552 B | 224,698 B |
+| 16 | 3,573,104 B | 224,772 B |
+
+This is the main practical win of the current design:
+
+- final proof distribution stays almost flat
+- sparse verifier disclosure grows only with the Merkle branch depth
+- verifier cost stays tiny even as the batch gets larger
+
+Important caveat:
+
+- this is the right comparison for sparse verification or “show me one leaf”
+- it is not the right comparison for full disclosure of every leaf in the
+  batch, because in that case you still need to ship all leaf public claims
+  somehow
 
 ## What RISC Zero Actually Supports
 
