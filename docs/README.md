@@ -36,20 +36,23 @@ Start with `../doc.go` for the package-level overview, then:
 10. `mmr-accumulator-sketch.md`
     - shorter sketch of the append-only / flat-root-preserving accumulator
       direction if we later need stronger incremental semantics
-11. `batch-future-work.md`
+11. `sparse-accumulator-plan.md`
+    - design note for using a compressed sparse Merkle accumulator instead of
+      MMR as the next flat-root incremental direction
+12. `batch-future-work.md`
     - broader future directions beyond the implemented nested and
       heterogeneous-parent layers: accumulator alternatives, larger studies,
       and multi-UTXO authorization
-12. `heterogeneous-parent-plan.md`
+13. `heterogeneous-parent-plan.md`
     - design note that led to the current mixed direct parent mode for
       `{batch_claim_v1, raw_leaf_1, raw_leaf_2}`
-13. `nested-wrapper-plan.md`
+14. `nested-wrapper-plan.md`
     - design note behind the current one-shot nested-batch orchestration
       command
-14. `code-format.md`
+15. `code-format.md`
     - the commenting, stanza, and readability rules used for the Go code in
       this repo
-15. `../progress.md`
+16. `../progress.md`
     - repo-local working log and major findings
 
 ## Core Claim
